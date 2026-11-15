@@ -227,6 +227,7 @@ describe("key signature (tonalidad)", () => {
 
   it("a click on a staff position follows the signature unless an accidental is chosen", async () => {
     st().setKey("G");
+    await vi.waitFor(() => expect(st().keyId).toBe("G")); // hand-written code is patched after a verification round
     await settle();
     st().addNoteAt(0, 65); // the F line/space
     expect(st().doc.events[0].midi).toBe(66); // F# in G major
@@ -571,4 +572,77 @@ describe("fuzz: random editing sessions stay consistent with real Strudel", () =
       }
     }
   }, 600000);
+});
+
+describe("keeping the user's own code (setting preserveCode)", () => {
+  const mine = [
+    "// mi pieza",
+    "// @compases 4",
+    'setcpm(28)',
+    'note("<[c4 e4 g4 e4] [d4 f4 a4 f4]>")',
+    "  .every(2, rev) // mi patrón",
+    "",
+  ].join("\n");
+
+  it("changing the key (no transposition) only touches the directive", async () => {
+    useScore.setState({ transposeOnKeyChange: false });
+    st().setSettings({ preserveCode: true });
+    await load(mine);
+    st().setKey("G");
+    await settle();
+    await vi.waitFor(() => expect(st().code).toContain("// @tonalidad G"));
+    expect(st().code).toBe(`// @tonalidad G\n${mine}`);
+    expect(st().keyId).toBe("G");
+  });
+
+  it("changing the key WITH transposition appends .transpose() and still plays the transposed piece", async () => {
+    useScore.setState({ transposeOnKeyChange: true });
+    st().setSettings({ preserveCode: true });
+    await load('// @compases 2\nnote("<c4 e4>")\n');
+    const before = st().doc.events.map((e) => e.midi);
+    st().setKey("D");
+    await vi.waitFor(() => expect(st().code).toContain(".transpose("));
+    await settle();
+    expect(st().code).toContain('note("<c4 e4>")');
+    expect(st().doc.events.map((e) => e.midi)).toEqual(before.map((m) => m + 2));
+    await assertConsistent();
+  });
+
+  it("a pattern that cannot take .transpose() falls back to regenerating the code", async () => {
+    useScore.setState({ transposeOnKeyChange: true });
+    st().setSettings({ preserveCode: true });
+    await load('// @compases 1\nn("0 2 4").scale("C:major").note()\n');
+    st().setKey("D");
+    await vi.waitFor(() => expect(st().keyId).toBe("D"));
+    await settle();
+    await assertConsistent();
+  });
+
+  it("adding a measure only changes @compases", async () => {
+    st().setSettings({ preserveCode: true });
+    await load(mine);
+    st().act({ type: "addMeasure" });
+    await vi.waitFor(() => expect(st().code).toContain("// @compases 5"));
+    expect(st().code).toBe(mine.replace("@compases 4", "@compases 5"));
+    expect(st().doc.measures).toBe(5);
+  });
+
+  it("with the setting off the code is regenerated as before", async () => {
+    useScore.setState({ transposeOnKeyChange: false });
+    st().setSettings({ preserveCode: false });
+    await load(mine);
+    st().setKey("G");
+    await vi.waitFor(() => expect(st().code).toContain("Generado desde la partitura"));
+    expect(st().code).not.toContain("mi patrón");
+    st().setSettings({ preserveCode: true });
+  });
+
+  it("the setting is persisted in localStorage", () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => (store[k] = v), removeItem: (k: string) => delete store[k] });
+    st().setSettings({ preserveCode: false });
+    expect(JSON.parse(store["os-settings"])).toEqual({ preserveCode: false });
+    st().setSettings({ preserveCode: true });
+    vi.unstubAllGlobals();
+  });
 });

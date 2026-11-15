@@ -3,6 +3,26 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [0.3.0] - 2026-11-15
+
+### Added
+- **PDF export** (header button): the whole score on classic A4 portrait sheets, vector, with justified measures
+  (proportional to their density, at most 4 per system), title (`// @titulo`), key, tempo and page numbers. Clefs, notes
+  and numbers are embedded as glyph outlines read from the same fonts VexFlow uses (Bravura / Academico, SIL OFL).
+- **Documentation** at `/docs` with a side panel: sections (introduction, time and measures, directives, writing on the
+  staff, tempo and `$:`, sheets and PDF, settings, deployment and licence), a searchable **function reference** (all 544
+  entries / 733 names, with descriptions and runnable examples), the **sounds** catalogue and the examples. Functions can be
+  tried in the editor with one click.
+- **Settings** (gear in the header), saved in `localStorage`, no account needed. First setting: **Conserve my code**.
+- `// @titulo` directive.
+
+### Changed
+- **Hand-written code is kept** (setting on by default): changing the key signature or the number of measures only
+  touches `// @tonalidad` / `// @compases`; transposing appends a `.transpose(n)` that is verified with the real engine and
+  otherwise falls back to regenerating the code. Editing single notes still regenerates the canonical code (undo restores yours).
+- The pager shows numbered sheets, "n measures per sheet", and warns when the piece lasts longer than what is drawn, with a
+  "draw all" button (the real length is detected by finding the period of the pattern, up to 32 measures).
+
 ## [0.2.0] - 2026-11-15
 
 ### Added

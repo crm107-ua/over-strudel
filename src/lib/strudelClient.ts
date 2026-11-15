@@ -4,6 +4,8 @@ export interface PatternResult {
   events: RawEvent[];
   /** tempo set by setcpm/setcps in the code (cycles per minute) or null */
   cpm: number | null;
+  /** measures before the pattern repeats exactly (null = longer than 32 / not periodic) */
+  period: number | null;
 }
 
 const TIMEOUT_MS = 1500;
@@ -18,7 +20,7 @@ function spawn(): Worker {
     if (!p) return;
     clearTimeout(p.timer);
     pending.delete(e.data.id);
-    if (e.data.ok) p.resolve({ events: e.data.events, cpm: e.data.cpm });
+    if (e.data.ok) p.resolve({ events: e.data.events, cpm: e.data.cpm, period: e.data.period });
     else p.reject(new Error(e.data.error));
   };
   return w;

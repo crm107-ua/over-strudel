@@ -4,16 +4,19 @@ import Editor from "@/components/Editor";
 import EditToolbar from "@/components/EditToolbar";
 import ErrorBanner from "@/components/ErrorBanner";
 import GuideModal from "@/components/GuideModal";
+import SettingsDialog from "@/components/SettingsDialog";
 import ScoreInfo from "@/components/ScoreInfo";
 import ScoreView from "@/components/ScoreView";
 import StatusBar from "@/components/StatusBar";
 import Toolbar from "@/components/Toolbar";
+import { loadSettings } from "@/lib/settings";
 import { useScore } from "@/store/useScore";
 
 export default function Home() {
   const [split, setSplit] = useState(42); // % width of the editor pane
   const wrap = useRef<HTMLDivElement>(null);
   const [guide, setGuide] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const theme = useScore((s) => s.scoreTheme);
 
   // restore the saved score theme after mount (avoids a hydration mismatch)
@@ -21,6 +24,22 @@ export default function Home() {
     try {
       const t = localStorage.getItem("os-score-theme");
       if (t === "dark" || t === "light") useScore.setState({ scoreTheme: t });
+      useScore.setState({ settings: loadSettings() });
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
+
+  // "Probar en el editor" from the documentation hands its code over through localStorage
+  useEffect(() => {
+    try {
+      const c = localStorage.getItem("os-open-code");
+      if (c) {
+        localStorage.removeItem("os-open-code");
+        const st = useScore.getState();
+        st.setCode(c);
+        void st.evaluate(c);
+      }
     } catch {
       /* storage unavailable */
     }
@@ -42,7 +61,8 @@ export default function Home() {
 
   return (
     <main className="flex h-screen flex-col bg-[#0b0d12] text-foreground">
-      <Toolbar onOpenGuide={() => setGuide(true)} />
+      <Toolbar onOpenGuide={() => setGuide(true)} onOpenSettings={() => setSettingsOpen(true)} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <GuideModal open={guide} onOpenChange={setGuide} />
       <div ref={wrap} className="flex min-h-0 flex-1">
         <section className="dark flex min-w-0 flex-col" style={{ width: `${split}%` }}>

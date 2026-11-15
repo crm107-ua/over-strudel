@@ -3,6 +3,7 @@
 const DOUGH = "https://raw.githubusercontent.com/felixroos/dough-samples/main";
 
 export const SAMPLE_MAPS: string[] = [
+  "github:tidalcycles/dirt-samples", // the classic Tidal set: bd sd hh cp …
   `${DOUGH}/tidal-drum-machines.json`, // drum machines: bank("RolandTR909") …
   `${DOUGH}/piano.json`,
   `${DOUGH}/Dirt-Samples.json`, // bd sd hh cp … and hundreds more

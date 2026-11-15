@@ -10,7 +10,7 @@ Edit the score and the code rewrites itself.
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/tests-209%20unit%20%2B%20105%20e2e-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-235%20unit%20%2B%20browser%20e2e-brightgreen)](#testing)
 
 </div>
 
@@ -49,6 +49,10 @@ rewritten, with every measure still adding up exactly.
   Functions that only act on audio, visuals or devices (`pianoroll`, `scope`, `midi`, `osc`, motion sensors…) never break
   the score. Sample banks (drum machines, Dirt-Samples, piano, 139 VCSL instruments such as `sax`, `harp`, `kalimba`,
   `timpani2`…) load on first play, with autocompletion.
+- **PDF export and documentation** — the whole score on A4 sheets with justified measures (vector, fonts embedded as outlines);
+  an in-app documentation (`/docs`) with a side panel, searchable function reference and sounds catalogue.
+- **Your code stays yours** — with *Conserve my code* (Settings, stored in `localStorage`), changing the key or the number of measures
+  only touches the directives; your pattern is not rewritten.
 - **Dynamics and articulations** — `gain` becomes *p / mf / f*, `clip` becomes staccato / tenuto, both editable on the staff.
 - **Paginated sheets** — the score fills the whole panel and is split into sheets that follow the window size, with a
   pager and automatic page turns during playback.
@@ -177,7 +181,7 @@ The document model, the canonical code format and the design decisions are descr
   after every step, the code on screen evaluated by Strudel must reproduce the score exactly.
   `FUZZ_SESSIONS=60 npx vitest run src/store` for a heavier run.
 - **End-to-end** (`e2e/editor.mjs`, Playwright driving a real Chrome): clicks, keyboard, drag, undo, sequential entry,
-  pagination, key changes, playback and themes, the full API — 105 checks.
+  pagination, key changes, playback and themes, the full API, PDF, docs.
 
 ```bash
 npm run dev &                                   # or docker compose up -d --build

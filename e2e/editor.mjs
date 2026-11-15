@@ -295,7 +295,7 @@ check("right click on the stem removes the note", !/d4/.test(await editorText())
 check("the measure is refilled with a rest immediately", (await page.locator("[data-testid=score-pane] .vf-stavenote").count()) === 1);
 
 // 21. key signature: transposes the whole piece, draws the signature, clicks follow it
-await setCode("// @compases 2\nnote(`c4 e4 g4 c5`)\n");
+await setCode("// Generado desde la partitura\n// @compases 2\nnote(`c4 e4 g4 c5`)\n"); // staff-made code is regenerated; hand-written code is kept (see 25)
 await page.getByTestId("key-select").click();
 await page.getByRole("option", { name: "Re mayor" }).click();
 await wait(1300);
@@ -493,6 +493,77 @@ check("the next click refills THAT hole, in place, without touching the other no
   await wait(600);
   check("playing code with $: / setcpm raises no error", (await alerts()).length === 0, JSON.stringify(await alerts()));
   await page.getByRole("button", { name: /Detener/ }).first().click().catch(() => {});
+}
+
+// 25. keeping the user's own code (setting) + settings persistence
+{
+  const mine = ["// @compases 3", "// mi patron", 'note("<c4 e4 g4>").every(2, rev)'].join("\n");
+  await setCode(mine);
+  await page.getByTestId("add-measure-btn").click();
+  await wait(800);
+  let t = await editorText();
+  check("adding a measure keeps my pattern and only bumps @compases", /@compases 4/.test(t) && /every\(2, rev\)/.test(t) && /mi patron/.test(t) && !/Generado/.test(t), t);
+  await page.getByTestId("key-select").click();
+  await page.getByRole("option", { name: "Sol mayor" }).click();
+  await wait(1500);
+  t = await editorText();
+  check("changing the key keeps my pattern (directive + transpose only)", /@tonalidad G/.test(t) && /every\(2, rev\)/.test(t) && !/Generado/.test(t), t);
+  check("no error after keeping the code", (await alerts()).length === 0, JSON.stringify(await alerts()));
+  await page.getByTestId("open-settings").click();
+  const sw = page.getByTestId("preserve-switch");
+  check("the setting is on by default", (await sw.getAttribute("aria-checked")) === "true");
+  await sw.click();
+  await wait(200);
+  const stored = await page.evaluate(() => localStorage.getItem("os-settings"));
+  check("turning it off is saved in localStorage", /"preserveCode":false/.test(stored ?? ""), String(stored));
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await page.waitForSelector(".monaco-editor");
+  await page.getByTestId("open-settings").click();
+  check("and it survives a reload", (await page.getByTestId("preserve-switch").getAttribute("aria-checked")) === "false");
+  await page.getByTestId("preserve-switch").click(); // back on for the rest
+  await page.keyboard.press("Escape");
+  await wait(200);
+}
+
+// 26. sheet counter, period hint, PDF export, documentation
+{
+  const total = await page.getByTestId("page-total").innerText();
+  check("the pager shows the total number of sheets", /de \d+/.test(total), total);
+  const bars = Array.from({ length: 12 }, (_, i) => `[${"cdefgab"[i % 7]}${3 + (i % 5)} e4 g4 c5]`).join(" ");
+  await setCode(["// @compases 4", "note(`<" + bars + ">`)"].join("\n"));
+  await wait(800);
+  check("a piece longer than what is drawn says so", (await page.getByTestId("period-hint").innerText()).includes("12 compases"), await page.getByTestId("period-hint").innerText().catch(() => "no hint"));
+  await page.getByTestId("draw-all").click();
+  await wait(1200);
+  check("'Dibujar todos' draws the whole piece", (await layout()) && /@compases 12/.test(await editorText()), await editorText());
+  check("page range shows the measures per sheet", /por hoja/.test(await page.getByTestId("page-range").innerText()));
+
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 60000 }), page.getByTestId("export-pdf").click()]);
+  const path = await dl.path();
+  const { readFileSync } = await import("node:fs");
+  const buf = readFileSync(path);
+  const head = buf.subarray(0, 5).toString("latin1");
+  const pages = (buf.toString("latin1").match(/\/Type\s*\/Page/g) ?? []).length;
+  check("PDF export downloads a real PDF", head === "%PDF-" && buf.length > 8000, `${head} ${buf.length}`);
+  check("the PDF is A4 and has the sheets", /\/MediaBox\s*\[\s*0\s+0\s+595\.28\s+841\.89/.test(buf.toString("latin1")) && pages >= 1, `pages ${pages}`);
+
+  const docs = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  await docs.goto(BASE + "/docs");
+  await docs.waitForSelector('[data-testid="docs"]');
+  check("docs: opens on the introduction", (await docs.getByTestId("docs-title").innerText()) === "Introducción");
+  await docs.getByRole("button", { name: "Referencia de funciones" }).click();
+  await docs.waitForSelector('[data-testid="fn-card"]');
+  check("docs: the function reference lists the functions", (await docs.locator('[data-testid="fn-card"]').count()) > 20 && /\d+ resultados/.test(await docs.getByTestId("fn-count").innerText()));
+  await docs.getByTestId("docs-search").fill("setcpm");
+  await docs.waitForTimeout(300);
+  check("docs: search finds setcpm", (await docs.locator('[data-testid="fn-card"]').first().innerText()).includes("setcpm"));
+  await docs.getByTestId("docs-search").fill("");
+  await docs.getByRole("button", { name: "Sonidos e instrumentos" }).click();
+  check("docs: the sounds section lists the instruments", (await docs.getByRole("button", { name: /^harp/ }).count()) > 0 && (await docs.locator("body").innerText()).includes("kalimba5"));
+  await docs.getByRole("button", { name: "Ajustes y conservar tu código" }).click();
+  check("docs: settings section", (await docs.locator("body").innerText()).includes("localStorage"));
+  await docs.close();
 }
 
 check("no VexFlow render errors during the whole run", renderErrors.length === 0, renderErrors.join(" | "));

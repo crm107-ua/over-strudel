@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { buildScoreFromQ } from "@/lib/middleware/buildScore";
 import { quantize } from "@/lib/middleware/quantize";
 import { playCode, stopAudio } from "@/lib/audioEngine";
-import { parseDirectives, type StaffMode } from "@/lib/directives";
+import { appendTranspose, parseDirectives, setDirective, type StaffMode } from "@/lib/directives";
+import { DEFAULT_SETTINGS, saveSettings, type Settings } from "@/lib/settings";
 import { applyKeyToNatural, getKey, transpositionBetween } from "@/lib/keys";
 import { generateCode } from "@/lib/edit/codegen";
 import {
@@ -59,6 +60,9 @@ interface ScoreState {
   keyId: string;
   /** changing the key also transposes the whole piece to it (otherwise only the signature changes) */
   transposeOnKeyChange: boolean;
+  /** user settings (persisted in localStorage) */
+  settings: Settings;
+  setSettings: (patch: Partial<Settings>) => void;
   status: "idle" | "busy" | "ok" | "error";
   /** the editable document (single source of truth shared by the code and the score editor) */
   doc: Doc;
@@ -68,6 +72,8 @@ interface ScoreState {
   evaluatedCode: string;
   /** tempo set in the code with setcpm/setcps (cycles per minute), null = default */
   cpm: number | null;
+  /** how many measures the evaluated pattern lasts before repeating (null = unknown / longer than 32) */
+  period: number | null;
   error: string | null;
   isPlaying: boolean;
 
@@ -126,14 +132,17 @@ interface ScoreState {
   act: (a: EditAction) => void;
 }
 
+const GENERATED_MARK = "// Generado desde la partitura";
+
 export const useScore = create<ScoreState>((set, get) => {
   /** Apply an edit to the document, regenerate the canonical code, record history and verify with Strudel. */
   let lastCoalesce = { key: "", at: 0 };
-  const commit = (doc: Doc, ids: number[], coalesce?: string, keyId?: string) => {
+  const commit = (doc: Doc, ids: number[], coalesce?: string, keyId?: string, kept?: string, verified = true) => {
     const st = get();
     const next = normalize(doc);
     const key = keyId ?? st.keyId;
-    const code = generateCode(next, { staff: st.staffMode, key, cpm: st.cpm });
+    // `kept`: the user's own code, minimally patched, instead of the canonical regeneration
+    const code = kept ?? generateCode(next, { staff: st.staffMode, key, cpm: st.cpm });
     const now = Date.now();
     const merge = !!coalesce && lastCoalesce.key === coalesce && now - lastCoalesce.at < 600 && st.past.length > 0;
     lastCoalesce = coalesce ? { key: coalesce, at: now } : { key: "", at: 0 };
@@ -149,7 +158,7 @@ export const useScore = create<ScoreState>((set, get) => {
       reach: {}, // any ordinary edit forgets what entry wrote: the space you free is free again
       error: null,
     });
-    void get().evaluate(code, next);
+    void get().evaluate(code, kept !== undefined && !verified ? undefined : next);
     if (get().isPlaying) void get().play();
   };
 
@@ -161,6 +170,37 @@ export const useScore = create<ScoreState>((set, get) => {
     const r = fn(st.doc, st.score.grand, ids);
     if ("events" in r) commit(r, ids, coalesce);
     else commit(r.doc, r.ids, coalesce);
+  };
+
+  /**
+   * Apply a change that does not need to rewrite the user's code (key signature, number of measures, transposition):
+   * `patch` edits their code minimally. When the change must reproduce the edited document (`verify`), the patched code
+   * is first evaluated with the real engine and used only if it does; otherwise the code is regenerated as usual.
+   */
+  const commitKept = async (next: Doc, ids: number[], keyId: string | undefined, patch: (code: string) => string | null, verify: boolean) => {
+    const st = get();
+    const key = keyId ?? st.keyId;
+    // code generated from the score is ours to regenerate (its .slow(N) is tied to the measure count); only hand-written code is kept
+    if (st.settings.preserveCode && !st.code.includes(GENERATED_MARK)) {
+      const patched = patch(st.code);
+      if (patched !== null) {
+        try {
+          if (!verify) {
+            commit(next, ids, undefined, key, patched, false);
+            return;
+          }
+          const { events } = await queryPattern(patched, next.measures);
+          const fromCode = docFromQ(quantize(events, next.measures), next.measures);
+          if (JSON.stringify(canonical(fromCode)) === JSON.stringify(canonical(normalize(next)))) {
+            commit(next, ids, undefined, key, patched, true);
+            return;
+          }
+        } catch {
+          /* the patched code does not evaluate: regenerate */
+        }
+      }
+    }
+    commit(next, ids, undefined, key);
   };
 
   /** The sheet that shows a given sixteenth (the last measure for the very end). */
@@ -190,12 +230,19 @@ export const useScore = create<ScoreState>((set, get) => {
     staffMode: FIRST_DIR.staff,
     keyId: FIRST_DIR.key,
     transposeOnKeyChange: true,
+    settings: DEFAULT_SETTINGS,
+    setSettings: (patch) => {
+      const settings = { ...get().settings, ...patch };
+      set({ settings });
+      saveSettings(settings);
+    },
     status: "idle",
     doc: { measures: FIRST_DIR.measures ?? FIRST.measures, events: [] },
     score: scoreOf({ measures: FIRST_DIR.measures ?? FIRST.measures, events: [] }, FIRST_DIR.staff, FIRST_DIR.key),
     events: [],
     evaluatedCode: "",
     cpm: null,
+    period: null,
     error: null,
     isPlaying: false,
 
@@ -236,7 +283,16 @@ export const useScore = create<ScoreState>((set, get) => {
       const from = getKey(st.keyId);
       if (to.id === from.id) return;
       const semis = st.transposeOnKeyChange ? transpositionBetween(from, to) : 0;
-      commit(transposeAll(st.doc, semis), st.selection, undefined, to.id);
+      void commitKept(
+        transposeAll(st.doc, semis),
+        st.selection,
+        to.id,
+        (code) => {
+          const withKey = setDirective(code, "tonalidad", to.id === "C" ? null : to.id);
+          return semis ? appendTranspose(withKey, semis) : withKey;
+        },
+        true,
+      );
     },
     setCode: (code) => {
       const ex = EXAMPLES.find((e) => e.id === get().exampleId);
@@ -261,15 +317,15 @@ export const useScore = create<ScoreState>((set, get) => {
       const measures = dir.measures ?? get().measuresSetting;
       set({ status: "busy", measures, measuresFromCode: dir.measures !== null, staffMode: dir.staff, keyId: dir.key });
       try {
-        const { events, cpm } = await queryPattern(code, measures);
+        const { events, cpm, period } = await queryPattern(code, measures);
         const fromCode = docFromQ(quantize(events, measures), measures);
         const docEnd = fromCode.events.reduce((m, e) => Math.max(m, e.start + e.dur), 0);
         const consistent = expect && JSON.stringify(canonical(fromCode)) === JSON.stringify(canonical(expect));
         if (expect && consistent) {
-          set({ cpm, events, evaluatedCode: code, error: null, status: "ok", cursor: Math.min(get().cursor, measures * 16) }); // keep ids + selection
+          set({ cpm, period, events, evaluatedCode: code, error: null, status: "ok", cursor: Math.min(get().cursor, measures * 16) }); // keep ids + selection
         } else {
           set({
-            cpm, doc: fromCode, score: scoreOf(fromCode, dir.staff, dir.key), events, evaluatedCode: code, status: "ok",
+            cpm, period, doc: fromCode, score: scoreOf(fromCode, dir.staff, dir.key), events, evaluatedCode: code, status: "ok",
             error: expect ? "La partitura editada no coincide con lo que evalúa Strudel (se ha adoptado la evaluación)." : null,
             cursor: expect ? Math.min(get().cursor, measures * 16) : docEnd >= measures * 16 ? measures * 16 : docEnd,
             ...(expect ? {} : { reach: {}, cursorPinned: false }),
@@ -438,10 +494,12 @@ export const useScore = create<ScoreState>((set, get) => {
           break;
         }
         case "addMeasure":
-          edit((d) => ({ doc: addMeasure(d), ids: st.selection }), false);
+          void commitKept(addMeasure(st.doc), st.selection, undefined, (code) => setDirective(code, "compases", st.doc.measures + 1), false);
           useScore.setState({ page: Number.MAX_SAFE_INTEGER }); // the view clamps it to the last sheet
           break;
-        case "removeMeasure": edit((d) => ({ doc: removeLastMeasure(d), ids: st.selection }), false); break;
+        case "removeMeasure":
+          if (st.doc.measures > 1) void commitKept(removeLastMeasure(st.doc), st.selection, undefined, (code) => setDirective(code, "compases", st.doc.measures - 1), false);
+          break;
         case "toggleRest": set({ noteKind: st.noteKind === "rest" ? "note" : "rest" }); break;
         case "enter": get().enterAt(st.noteKind === "rest" ? null : st.lastMidi, null, st.inputStaff, true); break;
         case "togglePlay": void get().togglePlay(); break;

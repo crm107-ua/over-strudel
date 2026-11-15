@@ -130,10 +130,11 @@ describe("directives", () => {
       measures: 8,
       staff: "piano",
       key: "C",
+      title: null,
     });
-    expect(parseDirectives("note('c4')")).toEqual({ measures: null, staff: "auto", key: "C" });
-    expect(parseDirectives("// @measures 999")).toEqual({ measures: 64, staff: "auto", key: "C" });
-    expect(parseDirectives("// @pentagrama sol")).toEqual({ measures: null, staff: "treble", key: "C" });
+    expect(parseDirectives("note('c4')")).toEqual({ measures: null, staff: "auto", key: "C", title: null });
+    expect(parseDirectives("// @measures 999")).toEqual({ measures: 64, staff: "auto", key: "C", title: null });
+    expect(parseDirectives("// @pentagrama sol")).toEqual({ measures: null, staff: "treble", key: "C", title: null });
   });
 });
 

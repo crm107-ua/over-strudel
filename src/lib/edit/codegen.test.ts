@@ -68,7 +68,7 @@ describe("generateCode -> real Strudel -> same document", () => {
 
   it("the directives are written and parsed back", () => {
     const code = generateCode(doc(5, [[0, 4, 60]]), { staff: "piano" });
-    expect(parseDirectives(code)).toEqual({ measures: 5, staff: "piano", key: "C" });
+    expect(parseDirectives(code)).toEqual({ measures: 5, staff: "piano", key: "C", title: null });
   });
 
   it("code is a fixed point: regenerating from the evaluation gives identical text", async () => {
