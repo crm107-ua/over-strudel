@@ -220,7 +220,7 @@ const HINT: Record<Ghost["mode"], string> = {
   note: "clic selecciona · rueda cambia la altura",
   move: "suelta para mover",
   rest: "silencio · se escribe en el cursor",
-  full: "Alt+clic elige desde dónde escribir · ＋ Compás añade uno",
+  full: "no queda nada por subdividir · Alt+clic elige desde dónde escribir",
 };
 
 /** The rest about to be written: a simple rest symbol of the chosen length (whole, half, quarter, eighth, sixteenth). */
@@ -419,7 +419,7 @@ export default function ScoreView() {
     const st = useScore.getState();
     const to = pixelOf(layout, s.abs, s.midi, st.score.grand);
     if (!to || (Math.abs(to.x - s.from.x) < 3 && Math.abs(to.y - s.from.y) < 3)) return;
-    const ids = new Set(st.selection);
+    const ids = new Set([...st.selection, ...st.lastEntered]); // the note just written is hidden while its copy glides
     const hidden: SVGElement[] = [];
     layout.measures.forEach((m) =>
       m?.els.forEach((n) => {
@@ -651,10 +651,20 @@ export default function ScoreView() {
     }
     if (!hit) return st.select([]);
     if (st.entryMode === "sequence") {
-      // sequential entry: Alt+click moves the cursor; a plain click writes at the cursor (not where you clicked)
+      // Alt+click moves the cursor. A plain click may be ANYWHERE in the measure: the note is shown where you clicked
+      // and then glides to its structured place (the first free point, or the subdivision of a full measure).
       if (e.altKey) {
         st.setCursor(hit.abs);
         return;
+      }
+      const t = entryTarget(st.doc, st.cursor, hit.loc.measure, hit.loc.staff, st.score.grand, effDur(st.tool), st.reach, st.cursorPinned);
+      if (t && st.noteKind === "note") {
+        settleRef.current = {
+          abs: t.start,
+          midi: resolvePitch(hit.loc.midi, st.tool, st.score.fifths),
+          dur: t.dur,
+          from: { x: hit.x, y: ghostRef.current?.y ?? hit.y },
+        };
       }
       st.select([]);
       st.enterAt(hit.loc.midi, hit.loc.measure, hit.loc.staff);
@@ -697,22 +707,25 @@ export default function ScoreView() {
       if (note) {
         g = makeGhost(note.start, note.midi, note.dur, "note", note.id);
       } else if (st.entryMode === "sequence") {
-        // shown where it WILL go (at the cursor), with the pitch row under the pointer
+        // the note follows the pointer: click ANYWHERE in the measure; on click it settles into its structured place
         const t = entryTarget(st.doc, st.cursor, loc.measure, loc.staff, st.score.grand, effDur(st.tool), st.reach, st.cursorPinned);
-        showCaretAt(t ? t.start : null);
+        showCaretAt(null);
         if (!t) {
-          // the measure under the pointer is full: nothing would be written
+          // nothing left to subdivide in the measure under the pointer
           setGhost((prev) => (prev && prev.mode === "full" && prev.x === hit.x && prev.y === hit.y ? prev : { x: hit.x, y: hit.y, midi: loc.midi, dur: effDur(st.tool), mode: "full" }));
           return;
         }
-        const at = t.start;
         const rest = st.noteKind === "rest";
-        const restRow = loc.staff === "bass" ? 50 : 71; // middle line of the staff
-        const row = rest ? restRow : pitch(loc.midi);
-        const kind = rest ? "rest" : "add";
-        g = makeGhost(at, row, t.dur, kind);
+        const row = rest ? (loc.staff === "bass" ? 50 : 71) : pitch(loc.midi); // rests sit on the middle line
+        g = makeGhost(abs, row, t.dur, rest ? "rest" : "add", undefined, hit.x);
         if (g) {
-          const hint = t.dur < effDur(st.tool) ? `solo cabe ${durLabel(t.dur)} en este compás` : rest ? "silencio · a continuación de lo escrito" : "a continuación de lo escrito · Alt+clic elige el punto";
+          const hint = t.split
+            ? `subdivide la última nota: ${durLabel(t.split.keepDur)} + ${durLabel(t.dur)}`
+            : t.dur < effDur(st.tool)
+              ? `solo cabe ${durLabel(t.dur)} aquí`
+              : rest
+                ? "silencio · se coloca solo al hacer clic"
+                : "se coloca solo en su sitio al hacer clic";
           g = { ...g, hint };
         }
       } else if (st.noteKind === "rest") {

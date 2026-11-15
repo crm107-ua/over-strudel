@@ -1,5 +1,5 @@
 // Next's `output: "standalone"` build does not include the static assets: copy them next to server.js so that
-// `node .next/standalone/server.js` serves a complete app (used by PM2 and by any plain-Node deployment).
+// `node .next/standalone/server.js` serves a complete app (used by the Docker image and by any plain-Node deployment).
 import { cpSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 

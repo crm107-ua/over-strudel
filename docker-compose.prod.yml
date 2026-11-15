@@ -1,0 +1,51 @@
+# Production service for a VPS that already runs a reverse proxy (e.g. Nginx) on the host.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# The app is published ONLY on the loopback interface (http://127.0.0.1:4244): the host's Nginx terminates TLS and
+# proxies to it. Nothing else on the machine, and nothing outside it, can reach the container directly.
+#
+# Variables (all optional):
+#   APP_PORT  host loopback port            (default 4244)
+#   APP_UID   user id the container runs as (default 1000)  -> use the id of the deploy user: `id -u`
+#   APP_GID   group id                      (default 1000)  -> `id -g`
+name: over-strudel
+
+services:
+  app:
+    build: .
+    image: over-strudel:latest
+    container_name: over-strudel
+    restart: unless-stopped
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    ports:
+      - "127.0.0.1:${APP_PORT:-4244}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    # --- hardening ---
+    read_only: true            # the app never writes to its filesystem
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    pids_limit: 200
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

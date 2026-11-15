@@ -323,8 +323,6 @@ describe("sequential entry: notes and rests, one after another", () => {
     tool(8);
     st().addNoteAt(0, 60);
     st().addNoteAt(8, 62);
-    st().enterAt(null, 0, "treble"); // measure is full and the cursor is an ordinary one: nothing happens
-    expect(st().doc.events.map((e) => e.midi)).toEqual([60, 62]);
     st().setCursor(0); // Alt+click: write from here
     useScore.setState({ noteKind: "rest" });
     st().enterAt(null, 0, "treble");
@@ -334,20 +332,85 @@ describe("sequential entry: notes and rests, one after another", () => {
     await assertConsistent();
   });
 
-  it("a full measure accepts nothing and NEVER adds measures", async () => {
+  it("every click on a full measure subdivides its last note (whole -> 2 halves -> half + 2 quarters ...)", async () => {
     tool(16);
     st().enterAt(60, 0, "treble");
-    st().enterAt(62, 1, "treble");
+    expect(shape(0)).toEqual(["w"]);
+    st().enterAt(62, 0, "treble");
+    expect(st().doc.events.map((e) => [e.start, e.dur, e.midi])).toEqual([[0, 8, 60], [8, 8, 62]]);
+    expect(shape(0)).toEqual(["h", "h"]);
+    st().enterAt(64, 0, "treble");
+    expect(st().doc.events.map((e) => e.dur)).toEqual([8, 4, 4]);
+    st().enterAt(65, 0, "treble");
+    expect(st().doc.events.map((e) => e.dur)).toEqual([8, 4, 2, 2]);
     await settle();
-    const codeBefore = st().code;
-    st().enterAt(64, 1, "treble"); // measure 2 is full
-    st().enterAt(65, 0, "treble"); // measure 1 is full
-    await settle();
-    expect(st().doc.measures).toBe(2);
-    expect(st().doc.events.map((e) => [e.start, e.midi])).toEqual([[0, 60], [16, 62]]);
-    expect(st().code).toBe(codeBefore);
+    expect(st().doc.measures).toBe(2); // never a new measure
     expect(st().code).toContain("// @compases 2");
     await assertConsistent();
+  });
+
+  it("the sequence ends when nothing is left to subdivide (sixteenths), still without new measures", async () => {
+    tool(16);
+    for (let i = 0; i < 12; i++) st().enterAt(60 + (i % 7), 0, "treble");
+    await settle();
+    expect(st().doc.events.map((e) => e.dur)).toEqual([8, 4, 2, 1, 1]);
+    expect(st().doc.measures).toBe(2);
+    await assertConsistent();
+  });
+
+  it("rest mode on a full measure subdivides too: the new half is a rest", async () => {
+    tool(16);
+    st().enterAt(60, 0, "treble");
+    useScore.setState({ noteKind: "rest" });
+    st().enterAt(null, 0, "treble");
+    expect(st().doc.events.map((e) => [e.start, e.dur])).toEqual([[0, 8]]);
+    expect(shape(0)).toEqual(["h", "hr"]);
+    useScore.setState({ noteKind: "note" });
+    tool(16);
+    st().enterAt(64, 0, "treble"); // the free half is free: the next note goes there
+    expect(st().doc.events.map((e) => [e.start, e.dur, e.midi])).toEqual([[0, 8, 60], [8, 8, 64]]);
+    await settle();
+    await assertConsistent();
+  });
+
+  it("deleting a note frees its space: the next clicks write there again", async () => {
+    tool(16);
+    st().enterAt(60, 0, "treble");
+    st().select([st().doc.events[0].id]);
+    st().act({ type: "delete" });
+    expect(st().doc.events).toHaveLength(0);
+    expect(shape(0)).toEqual(["wr"]);
+    st().enterAt(62, 0, "treble"); // the measure is a whole-note rest again
+    expect(st().doc.events.map((e) => [e.start, e.dur, e.midi])).toEqual([[0, 16, 62]]);
+    await settle();
+    await assertConsistent();
+  });
+
+  it("deleting one of several notes: the clicks refill the hole, in order, without touching the rest", async () => {
+    tool(4);
+    for (const m of [60, 62, 64, 65]) st().enterAt(m, 0, "treble");
+    expect(st().doc.events.map((e) => e.dur)).toEqual([4, 4, 4, 4]);
+    st().select([st().doc.events[1].id]);
+    st().act({ type: "delete" });
+    st().enterAt(70, 0, "treble");
+    expect(st().doc.events.map((e) => [e.start, e.midi])).toEqual([[0, 60], [4, 70], [8, 64], [12, 65]]);
+    await settle();
+    await assertConsistent();
+  });
+
+  it("deleting after explicit rests also frees the space (the written reach is forgotten)", async () => {
+    tool(4);
+    st().enterAt(60, 0, "treble");
+    useScore.setState({ noteKind: "rest" });
+    tool(8);
+    st().enterAt(null, 0, "treble");
+    tool(4);
+    st().enterAt(null, 0, "treble"); // note + rests to the barline: complete
+    useScore.setState({ noteKind: "note" });
+    st().select([st().doc.events[0].id]);
+    st().act({ type: "delete" });
+    st().enterAt(67, 0, "treble");
+    expect(st().doc.events.map((e) => [e.start, e.dur, e.midi])).toEqual([[0, 4, 67]]);
   });
 
   it("measures are only added with the explicit action", async () => {

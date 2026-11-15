@@ -1,15 +1,16 @@
 # Deployment
 
-Over Strudel is a static-like Next.js app (everything runs in the browser). Two ready-made setups are provided.
+Over Strudel is a static-like Next.js app (everything runs in the browser; the server only serves assets). Two ready-made
+Docker setups are provided.
 
-| Setup | When to use it |
-| --- | --- |
-| [Docker Compose](#1-docker-compose) | A machine where you want one command and an included Nginx. |
-| [PM2 + your own Nginx](#2-pm2-behind-an-existing-nginx) | A Linux server that already hosts other apps behind a reverse proxy. |
+| Setup | File | When to use it |
+| --- | --- | --- |
+| [All-in-one](#1-all-in-one-docker-compose) | `docker-compose.yml` | A machine where you want one command and a bundled Nginx on port 80. |
+| [VPS behind your Nginx](#2-vps-docker-behind-the-hosts-nginx) | `docker-compose.prod.yml` | A server that already runs a reverse proxy and other services. **Recommended for production.** |
 
-Requirements: Node.js ≥ 20.9 (22 recommended) for PM2; Docker 24+ for Docker.
+Requirements: Docker 24+ with the Compose v2 plugin. No Node.js is needed on the host.
 
-## 1. Docker Compose
+## 1. All-in-one (Docker Compose)
 
 ```bash
 docker compose up -d --build
@@ -22,35 +23,46 @@ docker compose up -d --build
 
 Update: `git pull && docker compose up -d --build`.
 
-## 2. PM2 behind an existing Nginx
+## 2. VPS: Docker behind the host's Nginx
 
-The repository ships `ecosystem.config.cjs`, which describes **only** the `over-strudel` process (standalone server,
-`PORT=4244`, `HOSTNAME=127.0.0.1`). Using `--only over-strudel` guarantees other PM2 processes are never touched.
+`docker-compose.prod.yml` runs only the app, published **on the loopback interface** (`127.0.0.1:4244`). The host's Nginx
+terminates TLS and proxies to it, so nothing else — on the machine or outside it — can reach the container directly.
 
-### 2.1 First deployment
+### 2.1 What is hardened
 
-On the server (as the user that owns the PM2 daemon), in the application directory:
+| Setting | Effect |
+| --- | --- |
+| `user: APP_UID:APP_GID` | Runs as the deploy user (not root, not a shared account). |
+| `read_only: true` + `tmpfs: /tmp` | The container filesystem is immutable; the app never writes to it. |
+| `cap_drop: [ALL]`, `no-new-privileges` | No Linux capabilities, no privilege escalation. |
+| `mem_limit: 512m`, `pids_limit: 200` | A runaway process cannot starve the host. |
+| `ports: 127.0.0.1:4244:3000` | Not reachable from the network, only through Nginx. |
+| `healthcheck`, `restart: unless-stopped` | Docker restarts it if it dies or stops answering, and on reboot. |
+| `json-file` log rotation (10 MB × 3) | Logs cannot fill the disk. |
+
+### 2.2 First deployment
+
+On the server, as the user that will own the service (it must be able to run `docker`, i.e. be in the `docker` group):
 
 ```bash
-# get the sources into /var/www/html/overstrudel (git clone, or the upload shown in 2.3)
-npm ci
-npm run build                      # also copies .next/static and public next to the standalone server.js
-pm2 start ecosystem.config.cjs --only over-strudel
-curl -I http://127.0.0.1:4244      # expect HTTP/1.1 200
+mkdir -p /var/www/html/overstrudel && cd /var/www/html/overstrudel
+# get the sources here (git clone, or the upload shown in 2.4)
+
+export APP_UID=$(id -u) APP_GID=$(id -g)        # run the container as this user
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml ps    # STATUS should become "healthy"
+curl -I http://127.0.0.1:4244                   # expect HTTP/1.1 200
 ```
 
-Persist the process list so it survives reboots. `pm2 save` writes **every** process in the list, so back the current
-dump up first:
+To make the ids permanent, put them in a `.env` file next to the compose file (it is git-ignored):
 
-```bash
-cp ~/.pm2/dump.pm2 ~/.pm2/dump.pm2.bak-$(date +%F)
-pm2 save
+```env
+APP_UID=1000
+APP_GID=1000
+APP_PORT=4244
 ```
 
-(PM2 must already be registered with the init system — `pm2 startup` once, as root — for the saved list to be resurrected
-at boot. Check with `systemctl is-enabled pm2-<user>`.)
-
-### 2.2 Nginx
+### 2.3 Nginx
 
 The app must be reachable as `http://127.0.0.1:4244`. Example server block (adapt the domain and certificates):
 
@@ -83,10 +95,10 @@ server {
 }
 ```
 
-Optional but recommended: `gzip on;` for `text/css application/javascript application/json image/svg+xml` and
+Optional but recommended: `gzip on;` for `text/css application/javascript application/json image/svg+xml`, and
 `Cache-Control: public, max-age=31536000, immutable` for `/_next/static/`.
 
-### 2.3 Updating from your own machine (no CI)
+### 2.4 Updating from your own machine (no CI)
 
 Deployments are done by hand from a local checkout, so what runs on the server is exactly a commit you chose:
 
@@ -96,32 +108,47 @@ git archive --format=tar.gz -o over-strudel.tgz HEAD
 scp over-strudel.tgz user@server:/tmp/
 
 ssh user@server 'cd /var/www/html/overstrudel \
-  && rm -rf .next \
+  && docker tag over-strudel:latest over-strudel:previous 2>/dev/null || true \
   && tar xzf /tmp/over-strudel.tgz \
-  && npm ci \
-  && npm run build \
-  && pm2 startOrReload ecosystem.config.cjs --only over-strudel --update-env \
-  && pm2 save'
+  && export APP_UID=$(id -u) APP_GID=$(id -g) \
+  && docker compose -f docker-compose.prod.yml up -d --build \
+  && docker compose -f docker-compose.prod.yml ps'
 ```
 
-The build happens on the server so native/optional dependencies match its platform.
+The image is built on the server, so it always matches the host's architecture. The old container keeps serving until the
+new image is built; the swap takes a couple of seconds.
 
-### 2.4 Operations
+### 2.5 Operations
 
 ```bash
-pm2 describe over-strudel          # status, uptime, restarts, script path
-pm2 logs over-strudel --lines 100
-pm2 reload over-strudel            # zero-downtime restart of this app only
-pm2 stop over-strudel
+docker compose -f docker-compose.prod.yml ps               # state and health
+docker compose -f docker-compose.prod.yml logs -f --tail 100
+docker compose -f docker-compose.prod.yml restart
+docker compose -f docker-compose.prod.yml down             # stop and remove (the image stays)
+docker image prune -f                                      # reclaim disk after several updates
 ```
 
-Rollback: ship the previous commit with the same procedure (`git archive <older-commit>`), or restore the backed-up
-`dump.pm2` if the process list itself was damaged (`pm2 kill` is **not** needed: `pm2 resurrect` loads the dump).
+Rollback: `docker tag over-strudel:previous over-strudel:latest` and
+`docker compose -f docker-compose.prod.yml up -d --no-build`.
+
+### 2.6 Migrating from PM2
+
+If the app used to run under PM2, switch over without touching other PM2 processes. Build the image first (the old process
+keeps serving), then free the port and start the container:
+
+```bash
+pm2 delete over-strudel          # only this process
+pm2 save                         # persist the list without it
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Back up `~/.pm2/dump.pm2` before `pm2 save`. The old `node_modules/` and `.next/` directories in the application folder
+are no longer needed and can be removed.
 
 ## 3. Environment
 
-The app needs no secrets or environment variables. The ones used at runtime are `PORT`, `HOSTNAME` and
-`NODE_ENV=production` (set in `ecosystem.config.cjs` / the Dockerfile).
+The app needs no secrets. The runtime variables are `PORT`, `HOSTNAME` and `NODE_ENV=production` (set in the Dockerfile and
+the compose files).
 
 ## 4. Licensing note for operators
 

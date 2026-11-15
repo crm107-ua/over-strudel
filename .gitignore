@@ -44,3 +44,6 @@ next-env.d.ts
 /e2e-*.png
 *.tgz
 .pm2/
+
+# local deployment overrides
+.env

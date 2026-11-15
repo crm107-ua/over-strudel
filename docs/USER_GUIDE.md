@@ -77,18 +77,22 @@ note(`
 ### Sequential entry (default)
 
 - Every measure starts as a **whole-note rest**.
-- A click writes the **next** element in the measure you click, right after what is already there. The horizontal
-  position of the click does not matter; it only selects the pitch (and the measure you work in). The violet line and the
-  card next to the pointer show exactly where it will go.
+- You can click **anywhere** in a measure. The note is shown where you point and, when you click, it **settles into its
+  structured place** (it glides there). Only the vertical position of the click matters (the pitch), plus the measure you
+  work in. The card next to the pointer shows the pitch, the length and what will happen.
+- Each click takes the **first free place** of the measure, right after what is already written. After you delete a note,
+  the next clicks refill that hole in place without touching the other notes.
 - The duration comes from the toolbar (`1`–`5`, `.`). It never crosses the barline: it is cut to what is left, and
   figures that no longer fit are disabled. The default figure shrinks to what remains in the measure.
 - The free part of the measure is always written with the subdivision you would expect — after a quarter note you get a
   quarter rest and a half rest — never with stray eighth rests or dotted rests.
-- **A full measure accepts nothing** (the card says *Compás lleno*) and **measures are never created automatically**.
-  Use **＋ Compás** (toolbar or the block at the end of the score).
+- **A full measure is subdivided:** each click turns its **last note** into two (a whole note becomes two halves, the last half
+  two quarters, and so on down to sixteenths); the new note takes the second part. **Measures are never created
+  automatically** — use **＋ Compás** (toolbar or the block at the end of the score). When nothing can be split any more the
+  card says *Compás lleno*.
 - `Alt`+click places the input cursor where you click inside that measure; from there you **overwrite**. The ⏮ ⏭ buttons
   move it to the start or to the end of what is written.
-- **Rest mode** works exactly like note mode but writes rests (replacing whatever is there). Switch between **Nota** and
+- **Rest mode** works exactly like note mode but writes rests (replacing whatever is there; in a full measure the subdivided second part becomes a rest). Switch between **Nota** and
   **Silencio** at any moment with the buttons or `R`; both mix freely in the same measure. `Enter` writes at the cursor
   without the mouse (a rest in rest mode, otherwise the last pitch).
 

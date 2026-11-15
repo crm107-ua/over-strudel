@@ -81,6 +81,8 @@ interface ScoreState {
   cursor: number;
   /** true when the cursor was moved on purpose (Alt+click, cursor buttons): then it may overwrite from there */
   cursorPinned: boolean;
+  /** ids of the note written by the last sequential entry (the view glides it from where you clicked) */
+  lastEntered: number[];
   /** how far entry has written in each measure (so a trailing rest counts as filled) */
   reach: Reach;
   inputStaff: StaffName;
@@ -142,6 +144,7 @@ export const useScore = create<ScoreState>((set, get) => {
       selection: ids.filter((id) => next.events.some((e) => e.id === id)),
       score: scoreOf(next, st.staffMode, key),
       keyId: key,
+      reach: {}, // any ordinary edit forgets what entry wrote: the space you free is free again
       error: null,
     });
     void get().evaluate(code, next);
@@ -199,6 +202,7 @@ export const useScore = create<ScoreState>((set, get) => {
     noteKind: "note",
     cursor: 0,
     cursorPinned: false,
+    lastEntered: [],
     reach: {},
     inputStaff: "treble",
     lastMidi: 67,
@@ -304,14 +308,22 @@ export const useScore = create<ScoreState>((set, get) => {
       const grand = st.score.grand;
       const asRest = st.noteKind === "rest" || midi === null;
       const t = entryTarget(st.doc, st.cursor, measure, staff, grand, effDur(st.tool), st.reach, st.cursorPinned);
-      if (!t) return; // that measure is full (or does not exist): nothing is written and no measure is ever added
-      let doc: Doc;
+      if (!t) return; // nothing can be written there (no such measure, or nothing left to subdivide): no measure is ever added
+      let doc = st.doc;
+      // a full measure: the last note is cut in two to make room (whole -> half + half, half -> quarter + quarter ...)
+      if (t.split) {
+        const { ids, keepDur } = t.split;
+        doc = { ...doc, events: doc.events.map((e) => (ids.includes(e.id) ? { ...e, dur: keepDur } : e)) };
+      }
       let lastMidi = st.lastMidi;
+      let entered: number[] = [];
       if (asRest) {
-        doc = clearRange(st.doc, t.start, t.dur, staff, grand);
+        doc = clearRange(doc, t.start, t.dur, staff, grand);
       } else {
         lastMidi = exact ? midi! : resolvePitch(midi!, st.tool, st.score.fifths);
-        doc = addNote(st.doc, { start: t.start, midi: lastMidi, dur: t.dur }, grand).doc;
+        const r = addNote(doc, { start: t.start, midi: lastMidi, dur: t.dur }, grand);
+        doc = r.doc;
+        entered = r.ids;
       }
       commit(doc, []);
       // the cursor moves on; the plain figure shrinks to what is left of the measure (subdivisions as they happen)
@@ -320,7 +332,11 @@ export const useScore = create<ScoreState>((set, get) => {
       const dur = Math.min(st.tool.dur, floorFigure(left));
       const dot = st.tool.dot && dur > 1 && (dur * 3) / 2 <= left && dur === st.tool.dur;
       const key = reachKey(staff, t.measure);
-      set({ cursor: next, cursorPinned: false, inputStaff: staff, lastMidi, tool: { ...st.tool, dur, dot }, reach: { ...st.reach, [key]: Math.max(st.reach[key] ?? 0, next) } });
+      // ordinary writing remembers how far it got; subdividing with a REST leaves the freed half free (reach drops to it)
+      const reach = t.split
+        ? { ...st.reach, [key]: asRest ? t.start : next }
+        : { ...st.reach, [key]: Math.max(st.reach[key] ?? 0, next) };
+      set({ cursor: next, cursorPinned: false, inputStaff: staff, lastMidi, lastEntered: entered, tool: { ...st.tool, dur, dot }, reach });
     },
     restAt: (abs, staff) => {
       const st = get();

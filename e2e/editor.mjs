@@ -386,22 +386,20 @@ await setCode("// @compases 2\nsilence\n");
 const seqX = async (m = 0) => { const l = await layout(); const box = await page.getByTestId("score-pane").boundingBox(); return { x: box.x + l.measures[m].x + 25, sys: l.systems[0], box }; };
 const seqPoint = async (diatonicStep, m = 0) => { const { x, sys, box } = await seqX(m); return { x, y: box.y + sys.staveY + 80 - (diatonicStep - 30) * 5 }; };
 const seqClick = async (diatonicStep, m = 0) => { const p = await seqPoint(diatonicStep, m); await page.mouse.click(p.x, p.y); await wait(550); };
-const caretX = async () => (await page.getByTestId("input-caret").boundingBox())?.x ?? -1;
 check("a fresh measure is a single whole rest", (await page.locator("[data-testid=score-pane] .vf-stavenote").count()) === 2);
-check("the input cursor is shown", (await page.getByTestId("input-caret").count()) === 1);
 
 await page.getByRole("button", { name: /Blanca/ }).click();
-const c0 = await caretX();
-let sp = await seqPoint(32); // G4, clicked far to the left of where the note will go
+let sp = await seqPoint(32); // G4, clicked far to the left of where the note will end up
 await page.mouse.move(sp.x, sp.y);
 await wait(300);
 const gbox = await page.getByTestId("ghost-note").boundingBox();
-check("the preview is shown where the note WILL go (at the cursor), not under the pointer", gbox && Math.abs(gbox.x + 24 - c0) < 10 && Math.abs(gbox.x + 24 - sp.x) > 20, `ghost ${gbox && gbox.x + 24}, cursor ${c0}, pointer ${sp.x}`);
+check("the note follows the pointer: you can click ANYWHERE in the measure", gbox && Math.abs(gbox.x + 24 - sp.x) < 6, `ghost ${gbox && gbox.x + 24}, pointer ${sp.x}`);
+const glide = page.waitForSelector("[data-testid=settle-note]", { state: "attached", timeout: 2500 }).then(() => true, () => false);
 await page.mouse.click(sp.x, sp.y);
+check("after the click the note glides from where you clicked to its structured place", await glide);
 await wait(550);
 check("first note: a half note at the start", /g4@8/.test(await editorText()), await editorText());
 check("the free half of the measure reads as ONE half rest", (await page.locator("[data-testid=score-pane] .vf-stavenote").count()) === 3); // half note + half rest + whole rest (2nd measure)
-check("the cursor moved on", (await caretX()) > c0 + 20);
 
 await page.getByRole("button", { name: /Negra/ }).click();
 await seqClick(33); // A4
@@ -432,10 +430,10 @@ await page.getByTestId("score-pane").focus();
 await page.keyboard.press("r");
 await wait(200);
 check("R switches to rest mode", (await page.getByRole("button", { name: "Modo silencio" }).getAttribute("aria-pressed")) === "true");
-const caretBefore = await caretX();
+const enterCode = await editorText();
 await page.keyboard.press("Enter");
 await wait(500);
-check("Enter in rest mode writes a rest and moves the cursor", (await caretX()) !== caretBefore);
+check("Enter in rest mode writes a rest (the staff is unchanged) and creates no measure", (await editorText()) === enterCode && (await layout()).measures.length === 2, await editorText());
 await page.keyboard.press("r");
 await wait(200);
 check("R switches back to note mode", (await page.getByRole("button", { name: "Modo nota" }).getAttribute("aria-pressed")) === "true");
@@ -450,12 +448,37 @@ await wait(400);
 check("Alt+click moves the cursor but writes nothing", (await editorText()) === altBefore);
 check("no VexFlow render errors in sequential entry", renderErrors.length === 0, renderErrors.join(" | "));
 
-// 27. regression: clicks on a full measure must never create measures or write strange structures
-await setCode("// @compases 2\nnote(`c4`)\n");
-const compBefore = (await layout()).measures.length;
-const codeBefore = await editorText();
-for (const m of [0, 1, 0]) await seqClick(32, m);
-check("clicking full measures changes nothing (no new measures, no notes)", (await layout()).measures.length === compBefore && (await editorText()) === codeBefore && /@compases 2/.test(await editorText()), await editorText());
+const rightClickHead = async (i) => { const bb = await page.locator("[data-testid=score-pane] .vf-notehead").nth(i).boundingBox(); await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2, { button: "right" }); };
+// 27. a FULL measure is subdivided by each click (never a new measure); deleting a note frees its space again
+await setCode("// @compases 2\nsilence\n");
+await page.getByRole("button", { name: /Redonda/ }).click();
+await seqClick(32, 0); // G4 whole note
+check("a whole note fills the measure", /g4@16/.test(await editorText()), await editorText());
+await seqClick(33, 0); // click on the full measure
+check("a click on the full measure turns the whole note into TWO HALVES", /g4@8 a4@8/.test(await editorText()), await editorText());
+await seqClick(34, 0);
+check("and the next click turns the last half into two quarters", /g4@8 a4@4 b4@4/.test(await editorText()), await editorText());
+check("no measure was created, ever", (await layout()).measures.length === 2 && /@compases 2/.test(await editorText()), await editorText());
+
+await setCode("// @compases 1\nsilence\n");
+await seqClick(32, 0);
+check("start again from a whole note", /g4@16/.test(await editorText()), await editorText());
+await rightClickHead(0);
+await wait(550);
+check("right click deletes the note: the measure is a whole rest again", /silence/.test(await editorText()), await editorText());
+await seqClick(33, 0);
+check("and the next click writes there again (the space is free)", /a4@16/.test(await editorText()), await editorText());
+
+await setCode("// @compases 1\nsilence\n");
+await page.getByRole("button", { name: /Negra/ }).click();
+for (const step of [32, 33, 34, 35]) await seqClick(step, 0);
+check("four quarters in order", /g4@4 a4@4 b4@4 c5@4/.test(await editorText()), await editorText());
+await rightClickHead(1);
+await wait(550);
+check("deleting the second note leaves a hole", /g4@4 ~@4 b4@4 c5@4/.test(await editorText()), await editorText());
+await seqClick(31, 0);
+check("the next click refills THAT hole, in place, without touching the other notes", /g4@4 f4@4 b4@4 c5@4/.test(await editorText()), await editorText());
+
 check("no VexFlow render errors during the whole run", renderErrors.length === 0, renderErrors.join(" | "));
 await page.screenshot({ path: SHOT });
 check("no browser dialog was ever shown", dialogs === 0, String(dialogs));

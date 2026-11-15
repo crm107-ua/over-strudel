@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildScoreFromQ } from "../middleware/buildScore";
 import type { ScoreVoice } from "../types";
 import {
-  addMeasure, addNote, canonical, clearRange, entryTarget, fillPointer, floorFigure, reachKey, deleteEvents, docToQ, joinNext, moveEvents, nudgeDuration, normalize, setArticulation,
+  addMeasure, addNote, canonical, clearRange, entryTarget, firstFree, floorFigure, reachKey, deleteEvents, docToQ, joinNext, moveEvents, nudgeDuration, normalize, setArticulation,
   removeLastMeasure, setAccidental, transposeAll, setDuration, setDynamic, totalSlots, transpose, type Doc,
 } from "./doc";
 
@@ -112,29 +112,44 @@ describe("move / duration / pitch", () => {
 
 describe("sequential entry", () => {
   const grand = false;
-  it("fill pointer: bar start when empty, end of the last note otherwise", () => {
+  /** apply an entry target the way the store does: cut the split note, then add the new one */
+  const write = (d: Doc, measure: number, midi: number, want = 4) => {
+    const t = entryTarget(d, 0, measure, "treble", grand, want);
+    if (!t) return null;
+    const events = d.events.map((e) => (t.split?.ids.includes(e.id) ? { ...e, dur: t.split.keepDur } : e));
+    return addNote({ ...d, events }, { start: t.start, midi, dur: t.dur }, grand).doc;
+  };
+  const durs = (d: Doc) => [...d.events].sort((a, b) => a.start - b.start).map((e) => e.dur);
+
+  it("first free point: bar start when empty, right after the last note otherwise", () => {
     let d = empty(2);
-    expect(fillPointer(d, 0, "treble", grand)).toBe(0);
+    expect(firstFree(d, 0, "treble", grand)).toBe(0);
     d = addNote(d, { start: 0, midi: 60, dur: 8 }, grand).doc;
-    expect(fillPointer(d, 0, "treble", grand)).toBe(8);
-    expect(fillPointer(d, 1, "treble", grand)).toBe(16);
+    expect(firstFree(d, 0, "treble", grand)).toBe(8);
+    expect(firstFree(d, 1, "treble", grand)).toBe(16);
     d = addNote(d, { start: 12, midi: 62, dur: 8 }, grand).doc; // crosses into measure 2
-    expect(fillPointer(d, 0, "treble", grand)).toBe(16);
-    expect(fillPointer(d, 1, "treble", grand)).toBe(20);
+    expect(firstFree(d, 1, "treble", grand)).toBe(20);
   });
-  it("the staffs have their own fill pointer on the grand staff", () => {
+  it("the staffs have their own first free point on the grand staff", () => {
+    const d = addNote(empty(1), { start: 0, midi: 48, dur: 8 }, true).doc;
+    expect(firstFree(d, 0, "bass", true)).toBe(8);
+    expect(firstFree(d, 0, "treble", true)).toBe(0);
+  });
+  it("a deleted note leaves a hole that is the first free point again", () => {
     let d = empty(1);
-    d = addNote(d, { start: 0, midi: 48, dur: 8 }, true).doc; // bass
-    expect(fillPointer(d, 0, "bass", true)).toBe(8);
-    expect(fillPointer(d, 0, "treble", true)).toBe(0);
+    for (let i = 0; i < 4; i++) d = addNote(d, { start: i * 4, midi: 60 + i, dur: 4 }, grand).doc;
+    d = deleteEvents(d, [d.events[1].id]);
+    expect(firstFree(d, 0, "treble", grand)).toBe(4);
+    // the next entry fills the hole and never overwrites the note that follows it, however long it is asked to be
+    expect(entryTarget(d, 0, 0, "treble", grand, 16)).toMatchObject({ start: 4, dur: 4 });
+    expect(entryTarget(d, 0, 0, "treble", grand, 2)).toMatchObject({ start: 4, dur: 2 });
   });
-  it("continues from the cursor and never crosses the barline", () => {
-    const d = addNote(empty(2), { start: 0, midi: 60, dur: 12 }, grand).doc;
-    const t = entryTarget(d, 12, null, "treble", grand, 8)!;
-    expect(t).toMatchObject({ start: 12, dur: 4, measure: 0 }); // only a quarter is left
-  });
-  it("an empty measure starts at its beginning (from the whole-note rest)", () => {
+  it("an empty measure starts from its whole-note rest", () => {
     expect(entryTarget(empty(2), 0, 1, "treble", grand, 16)).toMatchObject({ start: 16, dur: 16, measure: 1 });
+  });
+  it("never crosses the barline: the figure is cut to what is left", () => {
+    const d = addNote(empty(2), { start: 0, midi: 60, dur: 12 }, grand).doc;
+    expect(entryTarget(d, 12, null, "treble", grand, 8)).toMatchObject({ start: 12, dur: 4, measure: 0 });
   });
   it("clicking a measure writes in THAT measure, after what is already there", () => {
     let d = empty(3);
@@ -143,34 +158,75 @@ describe("sequential entry", () => {
     expect(entryTarget(d, 0, 2, "treble", grand, 4)).toMatchObject({ start: 32, measure: 2 });
     expect(entryTarget(d, 0, 0, "treble", grand, 4)).toMatchObject({ start: 0, measure: 0 });
   });
-  it("a full measure accepts nothing and NEVER creates measures", () => {
-    let d = empty(2);
-    d = addNote(d, { start: 0, midi: 60, dur: 16 }, grand).doc;
-    expect(entryTarget(d, 16, 0, "treble", grand, 4)).toBeNull();
-    expect(entryTarget(d, 0, 0, "treble", grand, 4)).toBeNull();
-    expect(entryTarget(empty(1), 16, null, "treble", grand, 4)).toBeNull(); // cursor past the end: no measure appears
-    expect(d.measures).toBe(2);
-  });
-  it("a measure that does not exist is not a target", () => {
+  it("a measure that does not exist is not a target, and nothing ever creates one", () => {
     expect(entryTarget(empty(2), 0, 5, "treble", grand, 4)).toBeNull();
+    expect(entryTarget(empty(1), 16, null, "treble", grand, 4)).toBeNull();
   });
-  it("a stale cursor cannot leave a gap: it never goes beyond what is written", () => {
-    let d = empty(1);
-    d = addNote(d, { start: 0, midi: 60, dur: 4 }, grand).doc;
-    expect(entryTarget(d, 12, 0, "treble", grand, 4)).toMatchObject({ start: 4 });
+
+  it("a FULL measure is subdivided by each click: whole -> half+half -> half+quarter+quarter ... down to sixteenths", () => {
+    let d: Doc | null = addNote(empty(2), { start: 0, midi: 60, dur: 16 }, grand).doc;
+    const seen: number[][] = [durs(d)];
+    for (const midi of [62, 64, 65, 67]) {
+      d = write(d!, 0, midi);
+      expect(d).not.toBeNull();
+      seen.push(durs(d!));
+    }
+    expect(seen).toEqual([[16], [8, 8], [8, 4, 4], [8, 4, 2, 2], [8, 4, 2, 1, 1]]);
+    expect(write(d!, 0, 69)).toBeNull(); // the last note is a sixteenth: nothing left to subdivide
+    expect(d!.measures).toBe(2); // and no measure was created
   });
-  it("a cursor moved on purpose (Alt+click) may overwrite from an earlier point, even in a full measure", () => {
+  it("the first click already turns a whole note into two halves, the new note taking the second", () => {
+    const d = addNote(empty(1), { start: 0, midi: 60, dur: 16 }, grand).doc;
+    const t = entryTarget(d, 0, 0, "treble", grand, 4)!;
+    expect(t).toMatchObject({ start: 8, dur: 8, split: { keepDur: 8 } });
+    const next = write(d, 0, 64)!;
+    expect(next.events.map((e) => [e.start, e.dur, e.midi])).toEqual([[0, 8, 60], [8, 8, 64]]);
+  });
+  it("odd and dotted lengths split into plain figures", () => {
+    // a leading filler makes the measure full, so the last note (length d) is the one that gets subdivided
+    const at = (d: number) => {
+      const full = addNote(addNote(empty(1), { start: 0, midi: 55, dur: 16 - d }, grand).doc, { start: 16 - d, midi: 60, dur: d }, grand).doc;
+      return entryTarget(full, 0, 0, "treble", grand, 4)!;
+    };
+    expect([at(12).split!.keepDur, at(12).dur]).toEqual([8, 4]);
+    expect([at(6).split!.keepDur, at(6).dur]).toEqual([4, 2]);
+    expect([at(3).split!.keepDur, at(3).dur]).toEqual([2, 1]);
+    expect([at(5).split!.keepDur, at(5).dur]).toEqual([4, 1]);
+  });
+  it("a chord is subdivided as one", () => {
     let d = empty(1);
     d = addNote(d, { start: 0, midi: 60, dur: 16 }, grand).doc;
+    d = addNote(d, { start: 0, midi: 64, dur: 16 }, grand).doc;
+    const t = entryTarget(d, 0, 0, "treble", grand, 4)!;
+    expect(t.split!.ids).toHaveLength(2);
+    const next = write(d, 0, 67)!;
+    expect(next.events.map((e) => [e.start, e.dur, e.midi]).sort((x, y) => x[0] - y[0] || x[2] - y[2])).toEqual([[0, 8, 60], [0, 8, 64], [8, 8, 67]]);
+  });
+  it("the LAST note is the one subdivided", () => {
+    let d = empty(1);
+    d = addNote(d, { start: 0, midi: 60, dur: 8 }, grand).doc;
+    d = addNote(d, { start: 8, midi: 62, dur: 8 }, grand).doc;
+    expect(entryTarget(d, 0, 0, "treble", grand, 4)).toMatchObject({ start: 12, dur: 4, split: { keepDur: 4 } });
+  });
+  it("a note that started in the previous measure cannot be subdivided from here", () => {
+    const d = addNote(empty(2), { start: 8, midi: 60, dur: 16 }, grand).doc; // 8..24
+    expect(entryTarget(d, 0, 1, "treble", grand, 4)).toMatchObject({ start: 24 }); // free space after it, as usual
+    const full = addNote(d, { start: 24, midi: 62, dur: 8 }, grand).doc;
+    expect(entryTarget(full, 0, 1, "treble", grand, 4)).toMatchObject({ split: { keepDur: 4 } }); // the note that starts here
+    const only = addNote(empty(2), { start: 8, midi: 60, dur: 24 }, grand).doc; // 8..32, starts in measure 1
+    expect(entryTarget(only, 0, 1, "treble", grand, 4)).toBeNull(); // nothing that starts inside measure 2 ends at its barline
+  });
+
+  it("a cursor moved on purpose (Alt+click) may overwrite from an earlier point, even in a full measure", () => {
+    const d = addNote(empty(1), { start: 0, midi: 60, dur: 16 }, grand).doc;
     expect(entryTarget(d, 4, 0, "treble", grand, 4, {}, true)).toMatchObject({ start: 4, dur: 4 });
-    expect(entryTarget(d, 4, 0, "treble", grand, 4, {}, false)).toBeNull(); // an ordinary cursor does not
+    expect(entryTarget(d, 4, 0, "treble", grand, 4, {}, false)).toMatchObject({ split: { keepDur: 8 } }); // an ordinary cursor subdivides instead
   });
   it("a rest replaces what is there and keeps what is before it", () => {
     let d = empty(1);
     d = addNote(d, { start: 0, midi: 60, dur: 8 }, grand).doc;
     d = addNote(d, { start: 8, midi: 62, dur: 8 }, grand).doc;
-    const r = clearRange(d, 4, 8, "treble", grand);
-    expect(tuples(r)).toEqual([[0, 4, 60]]);
+    expect(tuples(clearRange(d, 4, 8, "treble", grand))).toEqual([[0, 4, 60]]);
   });
   it("a rest only clears its own staff", () => {
     let d = empty(1);
@@ -178,13 +234,12 @@ describe("sequential entry", () => {
     d = addNote(d, { start: 0, midi: 72, dur: 16 }, true).doc;
     expect(tuples(clearRange(d, 0, 16, "treble", true))).toEqual([[0, 16, 48]]);
   });
-  it("a trailing rest counts as written: the measure is complete although it ends in a gap", () => {
-    let d = empty(2);
-    d = addNote(d, { start: 0, midi: 60, dur: 4 }, grand).doc; // only a quarter is stored
+  it("rests written by entry count as written: a measure that ends in them is complete and nothing is split", () => {
+    const d = addNote(empty(2), { start: 0, midi: 60, dur: 4 }, grand).doc; // only a quarter is stored
     const reach = { [reachKey("treble", 0)]: 16 }; // ...but entry wrote note + rests up to the barline
-    expect(fillPointer(d, 0, "treble", grand, reach)).toBe(16);
-    expect(entryTarget(d, 16, 0, "treble", grand, 4, reach)).toBeNull(); // full: no going back into the gap
-    expect(entryTarget(d, 16, 0, "treble", grand, 4)).toMatchObject({ start: 4, measure: 0 }); // without the memory it is not full
+    expect(firstFree(d, 0, "treble", grand, reach)).toBe(16);
+    expect(entryTarget(d, 16, 0, "treble", grand, 4, reach)).toBeNull(); // the last written element is a rest: nothing to subdivide
+    expect(entryTarget(d, 16, 0, "treble", grand, 4)).toMatchObject({ start: 4, measure: 0 }); // without the memory the hole is free
   });
   it("floorFigure: the longest plain figure that still fits", () => {
     expect([16, 12, 8, 7, 5, 4, 3, 2, 1].map(floorFigure)).toEqual([16, 8, 8, 4, 4, 4, 2, 2, 1]);

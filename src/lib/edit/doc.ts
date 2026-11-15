@@ -199,20 +199,30 @@ export function transposeAll(doc: Doc, semitones: number): Doc {
 }
 
 /** How far sequential entry has written in each measure, per staff: `${staff}:${measure}` -> absolute slot.
- *  Needed because a rest is not stored: after "note, rest" the measure is complete although it ends in a gap. */
+ *  Needed because a rest is not stored: after "note, rest" the measure is complete although it ends in a gap. It is
+ *  forgotten by any other edit (delete, move...), so the space you free is free again. */
 export type Reach = Record<string, number>;
 export const reachKey = (staff: StaffName, measure: number) => `${staff}:${measure}`;
 
-/** First free point of a measure on a staff: the end of its last note or of the last rest written, or the bar start. */
-export function fillPointer(doc: Doc, measure: number, staff: StaffName, grand: boolean, reach: Reach = {}): number {
+/**
+ * First free sixteenth of a measure on a staff: the first slot, from the written reach on, that no note covers.
+ * In normal writing that is "right after the last note"; after you delete a note it is the hole you left.
+ */
+export function firstFree(doc: Doc, measure: number, staff: StaffName, grand: boolean, reach: Reach = {}): number {
   const from = measure * 16;
-  const to = from + 16;
-  let end = Math.min(to, Math.max(from, reach[reachKey(staff, measure)] ?? from));
-  for (const e of doc.events) {
-    if (staffOf(e.midi, grand) !== staff) continue;
-    if (e.start < to && e.start + e.dur > from) end = Math.max(end, Math.min(to, e.start + e.dur));
+  const end = from + 16;
+  let p = Math.min(end, Math.max(from, reach[reachKey(staff, measure)] ?? from));
+  const here = doc.events.filter((e) => staffOf(e.midi, grand) === staff && e.start < end && e.start + e.dur > from);
+  for (let moved = true; moved && p < end; ) {
+    moved = false;
+    for (const e of here) {
+      if (e.start <= p && e.start + e.dur > p) {
+        p = Math.min(end, e.start + e.dur);
+        moved = true;
+      }
+    }
   }
-  return end;
+  return p;
 }
 
 /**
@@ -233,21 +243,24 @@ export function clearRange(doc: Doc, start: number, len: number, staff: StaffNam
 export interface EntryTarget {
   /** absolute slot where the element goes */
   start: number;
-  /** its length: the wanted one, cut to what is left of the measure */
+  /** its length: the wanted one, cut to the free space */
   dur: number;
   measure: number;
+  /** set when the measure was full: the last note (these ids) is cut to `keepDur` to make room for the new element */
+  split?: { ids: number[]; keepDur: number };
 }
 
 /**
- * Where the next sequentially entered element goes: ALWAYS inside the measure you work in (the clicked one, or the
- * cursor's for keyboard entry), right after what is already written there - starting from the whole-note rest of an
- * empty measure. It never leaves the measure and never creates measures: a full measure returns `null`.
- * The length never crosses the barline: it is cut to what is left, so a smaller subdivision is only reached when
- * the space really is that small.
+ * Where the next sequentially entered element goes. Always inside the measure you work in (the clicked one, or the
+ * cursor's for keyboard entry); it never leaves it and never creates measures.
  *
- * The cursor is honoured only inside the measure. By default it never goes beyond what is written there
- * (`fillPointer`), so a stale cursor cannot leave gaps nor write over a full measure. Only a cursor moved ON PURPOSE
- * (`pinned`, Alt+click) may point anywhere inside the measure, to overwrite from that point.
+ *  1. Free space: the element goes to the first free point of the measure (right after what is written, or into the
+ *     hole you left by deleting a note), cut to the free space so it never overwrites what comes after it. An empty
+ *     measure starts from its whole-note rest.
+ *  2. Full measure: the LAST note is subdivided to make room - a whole note becomes two halves, the last half two
+ *     quarters, and so on down to sixteenths (`null` only when nothing can be split any more).
+ *
+ * Only a cursor moved ON PURPOSE (`pinned`, Alt+click) writes at an arbitrary point, overwriting from there.
  */
 export function entryTarget(
   doc: Doc, cursor: number, clickedMeasure: number | null, staff: StaffName, grand: boolean, wantDur: number, reach: Reach = {}, pinned = false,
@@ -256,11 +269,24 @@ export function entryTarget(
   if (measure < 0 || measure >= doc.measures) return null;
   const from = measure * SLOTS;
   const end = from + SLOTS;
-  const fp = fillPointer(doc, measure, staff, grand, reach);
-  const inside = cursor >= from && cursor < end;
-  if (fp >= end && !(pinned && inside)) return null; // the measure is full (only a cursor moved on purpose may overwrite)
-  const c = inside ? (pinned ? cursor : Math.min(cursor, fp)) : fp;
-  return { start: c, dur: Math.max(1, Math.min(Math.round(wantDur), end - c)), measure };
+  const want = Math.max(1, Math.round(wantDur));
+  if (pinned && cursor >= from && cursor < end) return { start: cursor, dur: Math.min(want, end - cursor), measure };
+
+  const c = firstFree(doc, measure, staff, grand, reach);
+  const mine = doc.events.filter((e) => staffOf(e.midi, grand) === staff);
+  if (c < end) {
+    const next = mine.filter((e) => e.start > c && e.start < end).reduce((m, e) => Math.min(m, e.start), end);
+    return { start: c, dur: Math.max(1, Math.min(want, next - c)), measure };
+  }
+
+  // full: subdivide the last note (the group that ends at the barline and starts inside this measure)
+  const tail = mine.filter((e) => e.start >= from && e.start + e.dur === end);
+  if (!tail.length) return null;
+  const start = Math.max(...tail.map((e) => e.start));
+  const d = end - start;
+  if (d < 2) return null;
+  const keep = floorFigure(d - 1); // the largest plain figure strictly shorter than the note
+  return { start: start + keep, dur: d - keep, measure, split: { ids: tail.filter((e) => e.start === start).map((e) => e.id), keepDur: keep } };
 }
 
 /** Largest power of two (1,2,4,8,16) that fits in `n` slots: the longest plain figure still available. */

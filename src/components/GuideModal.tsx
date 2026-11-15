@@ -150,30 +150,34 @@ note(\`
 
         <Section n={9} title="Escribir en secuencia: notas y silencios">
           <p>
-            Es el modo por defecto (<b>Secuencial</b>). Cada compás empieza como una <b>redonda de silencio</b>, y cada clic en el pentagrama escribe
-            el <b>siguiente</b> elemento en el <b>cursor de entrada</b> (la línea violeta). El clic solo elige la <b>altura</b> (y el compás en el que trabajas):
-            la nota nunca se coloca donde cae el ratón, así no aparecen corcheas sueltas sin haber llegado a esa subdivisión.
+            Es el modo por defecto (<b>Secuencial</b>). Cada compás empieza como una <b>redonda de silencio</b>. Puedes hacer clic <b>en cualquier punto del
+            compás</b>: la nota aparece donde pulsas y, al hacer clic, <b>se coloca sola</b> en su sitio estructurado. De tu clic solo cuenta la <b>altura</b>
+            (y el compás en el que trabajas); así nunca aparecen corcheas sueltas sin haber llegado a esa subdivisión.
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <b>Duración:</b> la eliges en la barra (<span className={code}>1–5</span>, <span className={code}>.</span>). Una figura nunca cruza la barra de compás: se
-              recorta a lo que queda, y las figuras que ya no caben se desactivan. La duración se acorta sola a lo que queda del compás.
+              <b>Se escribe en orden:</b> cada clic ocupa el primer hueco libre del compás, a continuación de lo ya escrito. La duración la eliges en la barra
+              (<span className={code}>1–5</span>, <span className={code}>.</span>); nunca cruza la barra de compás y se recorta a lo que queda.
+            </li>
+            <li>
+              <b>Si el compás está lleno, cada clic lo subdivide:</b> una redonda pasa a <b>dos blancas</b>, la última blanca a dos negras, y así sucesivamente hasta
+              las semicorcheas. Nunca se crean compases solos: se añaden con <span className={code}>＋ Compás</span>.
+            </li>
+            <li>
+              <b>Borrar libera el espacio:</b> si quitas una nota, los siguientes clics rellenan ese hueco, en su sitio, sin tocar el resto.
             </li>
             <li>
               <b>Lo que queda libre</b> se escribe con silencios de la subdivisión que toca: tras una negra, <i>negra + blanca</i>; nunca corcheas ni silencios con puntillo
               si no se ha llegado a esa subdivisión.
             </li>
             <li>
-              <b>Modo Silencio:</b> funciona igual que el de notas, pero escribe silencios (sustituye lo que hubiera). Cambia entre <b>Nota</b> y <b>Silencio</b> en cualquier
-              momento con el botón o con <span className={code}>R</span>; ambos se mezclan en el mismo compás. <span className={code}>Intro</span> escribe en el cursor sin tocar el ratón.
+              <b>Modo Silencio:</b> funciona igual que el de notas, pero escribe silencios (sustituye lo que hubiera; en un compás lleno, la segunda mitad subdividida queda
+              como silencio). Cambia entre <b>Nota</b> y <b>Silencio</b> en cualquier momento con el botón o con <span className={code}>R</span>; ambos se mezclan en el mismo
+              compás. <span className={code}>Intro</span> escribe sin tocar el ratón.
             </li>
             <li>
-              <b>Cada compás por separado:</b> un clic escribe en el compás donde lo haces, a continuación de lo que ya hay (o desde la redonda si está vacío).
-              Un compás <b>lleno</b> no admite más (la tarjeta lo indica) y <b>nunca se crean compases solos</b>: se añaden con <span className={code}>＋ Compás</span>.
-            </li>
-            <li>
-              <b>Cursor:</b> la línea violeta marca el punto exacto donde se escribirá. <span className={code}>Alt</span>+clic lo coloca donde hagas clic dentro de ese compás
-              (y entonces <b>sobrescribe</b> desde ahí), y los botones ⏮ ⏭ lo llevan al principio o al final. En modo <b>Libre</b> la nota se coloca donde haces clic.
+              <b>Cursor:</b> <span className={code}>Alt</span>+clic lo coloca donde hagas clic dentro de ese compás (y entonces <b>sobrescribe</b> desde ahí); los botones
+              ⏮ ⏭ lo llevan al principio o al final. En modo <b>Libre</b> la nota se coloca donde haces clic, sin más.
             </li>
           </ul>
         </Section>

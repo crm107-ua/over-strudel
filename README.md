@@ -10,7 +10,7 @@ Edit the score and the code rewrites itself.
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/tests-119%20unit%20%2B%2093%20e2e-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-129%20unit%20%2B%20101%20e2e-brightgreen)](#testing)
 
 </div>
 
@@ -37,9 +37,11 @@ rewritten, with every measure still adding up exactly.
   measures, Western note values, ties across barlines, chords, polyphonic voices and rests.
 - **Bidirectional editing** — the score and the code are *the same document*. Place, move, resize, transpose and delete
   notes on the staff; the code is regenerated in a canonical form and re-evaluated to prove it plays exactly what you see.
-- **Sequential note entry** — each measure starts as a whole-note rest; every click writes the *next* note or rest, in
-  order. Free space is always shown as the subdivision you expect (half rest, quarter rest…), never as stray eighths.
-  Notes and rests share the same flow and you can switch at any moment (`R`).
+- **Sequential note entry** — each measure starts as a whole-note rest and you can click *anywhere* in it: the note
+  appears where you click and then settles into its structured place, in order. Click a full measure and its last note is
+  **subdivided** (whole → two halves → half + two quarters…). Free space is always shown as the subdivision you expect
+  (half rest, quarter rest…), never as stray eighths, and deleting a note frees its space again. Notes and rests share
+  the same flow and you can switch at any moment (`R`).
 - **Key signatures** — pick a key and the signature is drawn on every system with correct spelling (B♭ in F major).
   Optionally transpose the whole piece to the new key.
 - **Dynamics and articulations** — `gain` becomes *p / mf / f*, `clip` becomes staccato / tenuto, both editable on the staff.
@@ -48,7 +50,8 @@ rewritten, with every measure still adding up exactly.
 - **Playback with a score cursor** — audio through `@strudel/web`; a cursor sweeps the staff, sounding notes light up and
   the matching tokens are highlighted in the code editor.
 - **Light and dark score** — plus a themed, accessible component set (shadcn/ui on Base UI) that adapts to both modes.
-- **Self-hostable** — standalone Next.js build, Dockerfile + Nginx, or PM2 behind your own reverse proxy.
+- **Self-hostable** — standalone Next.js build in a hardened Docker image, with an all-in-one Compose (bundled Nginx) or a
+  production Compose that sits behind your own reverse proxy.
 
 <table>
   <tr>
@@ -116,14 +119,13 @@ The score editor works in two entry modes:
 
 | | **Sequential** (default) | **Free** |
 | --- | --- | --- |
-| Click | writes the next note/rest at the input cursor of the measure you click | places the note where you click |
+| Click | click anywhere in a measure: the note settles into the first free place; in a **full** measure the last note is subdivided | places the note where you click |
 | Duration | from the toolbar (`1`–`5`, `.`); never crosses the barline, shrinks to what is left | same, or drag horizontally to draw the length |
 | Rests | **Rest mode** writes rests exactly like notes (`R` switches, `Enter` writes at the cursor) | click in rest mode |
 | Cursor | `Alt`+click moves it (and then overwrites from there) | — |
 
 Common to both: click a note to select it (a floating menu appears), drag to move, **mouse wheel** over a note to change
-its pitch, right-click or `Del` to delete, `Ctrl+Z / Ctrl+Y` to undo/redo. A full measure never accepts more notes and
-**measures are never created implicitly**: use *＋ Compás*.
+its pitch, right-click or `Del` to delete, `Ctrl+Z / Ctrl+Y` to undo/redo. Measures are **never created implicitly**: use *＋ Compás*.
 
 ## Architecture in one picture
 
@@ -170,7 +172,7 @@ The document model, the canonical code format and the design decisions are descr
   after every step, the code on screen evaluated by Strudel must reproduce the score exactly.
   `FUZZ_SESSIONS=60 npx vitest run src/store` for a heavier run.
 - **End-to-end** (`e2e/editor.mjs`, Playwright driving a real Chrome): clicks, keyboard, drag, undo, sequential entry,
-  pagination, key changes, playback and themes — 93 checks.
+  pagination, key changes, playback and themes — 101 checks.
 
 ```bash
 npm run dev &                                   # or docker compose up -d --build
@@ -179,8 +181,9 @@ npm run test:e2e -- http://localhost:3000 "/path/to/chrome"
 
 ## Deployment
 
-Docker, and a PM2 + Nginx setup for a plain Linux server, are documented in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
-`ecosystem.config.cjs` describes the PM2 process (standalone server on port 4244, bound to `127.0.0.1`).
+Two Docker setups are documented in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: an all-in-one Compose with Nginx, and
+`docker-compose.prod.yml` for a VPS — the app on `127.0.0.1:4244` behind the host's reverse proxy, running as a non-root
+user with a read-only filesystem, no capabilities, and memory/process limits.
 
 ## Known limitations
 

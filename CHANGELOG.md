@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [0.1.1] - 2026-11-15
+
+### Changed
+- Sequential entry: you can click **anywhere** in a measure. The note follows the pointer and, on click, glides into its
+  structured place (first free point of the measure).
+- Clicking a **full** measure now **subdivides its last note** (whole → two halves → half + two quarters …) instead of
+  doing nothing; measures are still never created implicitly.
+
+### Fixed
+- After deleting a note the following clicks did nothing (the measure was still remembered as "written"); the freed space
+  is now refilled in place.
+- Deployment: `docker-compose.prod.yml` runs the app in Docker on a VPS — loopback only, non-root user, read-only
+  filesystem, no capabilities, memory/process limits, health check — replacing the PM2 process.
+- Tests: 129 unit/integration tests and 101 end-to-end checks.
+
 ## [0.1.0] - 2026-11-15
 
 First public release.
@@ -22,9 +37,9 @@ First public release.
 - Paginated sheets that fill the panel, pager, page turns during playback.
 - Playback through `@strudel/web` with a score cursor, lit-up sounding notes and highlighted code tokens.
 - Light and dark score; shadcn/ui (Base UI) component set.
-- Docker Compose + Nginx, PM2 configuration (`ecosystem.config.cjs`), standalone Next.js build.
-- Test suite: 119 unit/integration tests with the real Strudel engine (round-trip property tests, store fuzzing) and
-  93 end-to-end browser checks.
+- Docker Compose + Nginx, standalone Next.js build.
+- Test suite: unit/integration tests with the real Strudel engine (round-trip property tests, store fuzzing) and
+  end-to-end browser checks.
 
 ### Licensing
 - Released under AGPL-3.0-or-later, as required by the bundled Strudel packages; the app footer links to the source.

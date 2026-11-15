@@ -1,6 +1,6 @@
 {
   "name": "over-strudel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Live-code music with Strudel and watch it become sheet music in real time. Edit the score and the code rewrites itself.",
   "license": "AGPL-3.0-or-later",
   "homepage": "https://github.com/crm107-ua/over-strudel#readme",

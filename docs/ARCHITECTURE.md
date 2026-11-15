@@ -102,21 +102,31 @@ point**: evaluating it and regenerating yields identical text (tested on random 
 ## 6. Sequential entry contract
 
 State: `entryMode` (`sequence` | `free`), `noteKind` (`note` | `rest`), `cursor` (absolute sixteenth), `cursorPinned`,
-`reach` (how far entry has written per staff and measure).
+`reach` (how far entry has written per staff and measure), `lastEntered` (ids, used by the view's glide animation).
 
-`entryTarget(doc, cursor, clickedMeasure, staff, grand, wantDur, reach, pinned)`:
+`entryTarget(doc, cursor, clickedMeasure, staff, grand, wantDur, reach, pinned)` decides where the next element goes. It
+works **inside one measure** (the clicked one, or the cursor's for keyboard entry), never leaves it and **never creates
+measures** (a measure that does not exist is not a target):
 
-1. The target measure is the clicked one (or the cursor's for keyboard entry). It never leaves it and **never creates
-   measures** — a measure that does not exist is not a target.
-2. The write point is the cursor if it lies inside that measure, clamped to `fillPointer` (end of the last note or last
-   written rest, or the bar start for an empty measure) so a stale cursor cannot leave gaps.
-3. A **full measure returns `null`** (nothing happens). Only a cursor moved on purpose (`pinned`, `Alt`+click) may
-   overwrite from an earlier point.
-4. The length is cut to what is left of the measure; afterwards the default figure shrinks to the longest plain figure
-   that still fits (`floorFigure`), so subdivisions appear only when that space is really left.
+1. **Free space** — the element goes to `firstFree` (the first slot, from `reach` on, that no note covers: right after what is
+   written, or the hole left by a deleted note). Its length is cut to the free space, so it never crosses the barline and
+   never overwrites what follows.
+2. **Full measure** — the **last note** (the group that starts inside the measure and ends at its barline) is subdivided:
+   it keeps the largest plain figure strictly shorter than itself (`floorFigure(d - 1)`) and the new element takes the
+   rest: whole → 8+8, last half → 4+4, … down to sixteenths. `null` only when nothing can be split (a sixteenth, a rest at
+   the end, or a note that started in the previous measure).
+3. A cursor moved on purpose (`pinned`, `Alt`+click) writes at that point and overwrites from there.
+
+In rest mode the same targets apply but nothing is added: the range is cleared (`clearRange`), so a subdivided half becomes a
+rest. After each entry the default figure shrinks to the longest plain figure that still fits (`floorFigure`).
 
 `reach` exists because rests are not stored: after "note, rest, rest" the measure is complete although it ends in a gap.
-It is reset when the code is edited by hand, a score is loaded, or undo/redo runs.
+It is forgotten by every ordinary edit (`commit` clears it), by hand-edited code, loads and undo/redo — so deleting a note
+frees its space — and it drops when a rest subdivides a measure.
+
+**View.** In sequential mode the preview follows the pointer (click anywhere); on click `ScoreView` records where the note
+was dropped, `enterAt` writes it, and once the new layout is drawn a copy glides from the click point to the real
+position while the real note is hidden (`lastEntered`).
 
 ## 7. Key signatures
 
@@ -148,7 +158,7 @@ document; a mismatch adopts the evaluation and shows a warning. Mouse-wheel turn
 | Pure operations, geometry, keys, figures | Vitest | Rules and invariants (measures always complete, rests as subdivisions, entry contract). |
 | Codegen | Vitest + **real Strudel** | Document → code → engine → document is the identity, for random documents in several keys; code is a fixed point. |
 | Store | Vitest + real Strudel + fuzz | After any random action sequence the code on screen reproduces the score. |
-| UI | Playwright (`playwright-core`) driving real Chrome | Pointer, keyboard, drag, wheel, undo, pagination, playback, themes — 93 checks. |
+| UI | Playwright (`playwright-core`) driving real Chrome | Pointer, keyboard, drag, wheel, undo, pagination, playback, themes — 101 checks. |
 
 Vitest needs the ESM build of `@kabelsalat/web` (Node would pick its IIFE build): see the alias in `vitest.config.mts`.
 
