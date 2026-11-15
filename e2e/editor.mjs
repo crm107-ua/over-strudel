@@ -479,6 +479,22 @@ check("deleting the second note leaves a hole", /g4@4 ~@4 b4@4 c5@4/.test(await 
 await seqClick(31, 0);
 check("the next click refills THAT hole, in place, without touching the other notes", /g4@4 f4@4 b4@4 c5@4/.test(await editorText()), await editorText());
 
+// 24. the whole Strudel API is available in the audio scope and tempo / $: work end to end
+{
+  const { readFileSync } = await import("node:fs");
+  const names = [...readFileSync(new URL("../src/lib/strudelApi.ts", import.meta.url), "utf8").matchAll(/"([A-Za-z0-9_]+)"/g)].map((m) => m[1]);
+  const missing = await page.evaluate((ns) => ns.filter((n) => !(n in window) && !(n in window.Pattern.prototype)), names);
+  check(`all ${names.length} API names exist in the audio scope`, missing.length === 0, missing.join(" "));
+  await setCode(["setcpm(35)", "$: note(`c4 e4 g4 c5`).pianoroll()", "$: note(`c3@2 g3@2`).juxFlip(rev)"].join("\n"));
+  await wait(900);
+  check("setcpm shows the tempo (140 BPM)", (await page.locator("footer").innerText()).includes("140 BPM"), await page.locator("footer").innerText());
+  check("$: patterns are engraved", (await layout())?.measures.length >= 1 && (await alerts()).length === 0, JSON.stringify(await alerts()));
+  await page.getByRole("button", { name: /Reproducir|Detener/ }).first().click();
+  await wait(600);
+  check("playing code with $: / setcpm raises no error", (await alerts()).length === 0, JSON.stringify(await alerts()));
+  await page.getByRole("button", { name: /Detener/ }).first().click().catch(() => {});
+}
+
 check("no VexFlow render errors during the whole run", renderErrors.length === 0, renderErrors.join(" | "));
 await page.screenshot({ path: SHOT });
 check("no browser dialog was ever shown", dialogs === 0, String(dialogs));

@@ -55,5 +55,5 @@ export interface RawEvent {
 
 export type WorkerRequest = { id: number; code: string; cycles: number };
 export type WorkerResponse =
-  | { id: number; ok: true; events: RawEvent[] }
+  | { id: number; ok: true; events: RawEvent[]; cpm: number | null }
   | { id: number; ok: false; error: string };

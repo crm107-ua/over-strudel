@@ -41,6 +41,19 @@ It is the **grand staff** (like a piano): treble clef on top, bass clef below, j
 `stack(a, b, c)` plays layers together. Notes that start and end together form a chord; overlapping material with
 different lengths becomes separate **voices** (stems up and down).
 
+### 2.1 Tempo, labelled patterns and the rest of the API
+
+```js
+setcpm(35)                      // tempo: 35 cycles per minute = 140 BPM in 4/4 (default 30 = 120 BPM)
+$: note("c4 e4 g4 c5")          // every `$:` line is a layer; all of them are engraved together
+$: note("c3 g3").juxFlip(rev)
+all(x => x.fast(2))             // applied to the whole stack (each(...) applies to every layer)
+```
+
+Every function in the Strudel reference is accepted. Those that only affect sound, visuals or devices (`pianoroll`,
+`scope`, `midi`, `osc`, motion sensors, `samples`…) are ignored by the notation. Sample banks (`s("sax")`, `s("harp:3")`,
+`bank("RolandTR909")`…) load on first play.
+
 ## 3. Quantisation, dynamics, articulation
 
 - Every event is rounded to the nearest **sixteenth note**. Triplets and irregular subdivisions are approximated (there is

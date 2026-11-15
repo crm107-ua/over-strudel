@@ -65,13 +65,15 @@ function lines(steps: Step[], text: (s: Step) => string, indent: string): string
   return rows.map((r) => indent + r.join(" ")).join("\n");
 }
 
-export function generateCode(doc: Doc, opts: { staff?: StaffMode; key?: string } = {}): string {
+export function generateCode(doc: Doc, opts: { staff?: StaffMode; key?: string; cpm?: number | null } = {}): string {
   const key = getKey(opts.key);
   const total = totalSlots(doc);
   const head = [`// @compases ${doc.measures}`];
   if (opts.staff && opts.staff !== "auto") head.push(`// @pentagrama ${opts.staff === "piano" ? "piano" : "sol"}`);
   if (key.id !== DEFAULT_KEY) head.push(`// @tonalidad ${key.id}`);
-  head.push("// Generado desde la partitura · 1 ciclo = 1 compás", "");
+  head.push("// Generado desde la partitura · 1 ciclo = 1 compás");
+  if (opts.cpm != null) head.push(`setcpm(${fmt(opts.cpm)})`);
+  head.push("");
 
   if (!doc.events.length) return [...head, "silence", ""].join("\n");
 

@@ -136,3 +136,14 @@ describe("editing operations produce code that plays back the edit", () => {
     expect(canonical(await roundTrip(generateCode(d), 2))).toEqual(canonical(d));
   });
 });
+
+describe("tempo is preserved when editing from the staff", () => {
+  it("emits setcpm and the real engine reads it back", async () => {
+    const d = doc(1, [[0, 4, 60]]);
+    const code = generateCode(d, { cpm: 35 });
+    expect(code).toContain("setcpm(35)");
+    const { evaluateFull } = await import("../strudelRuntime");
+    expect((await evaluateFull(code, 1)).cpm).toBe(35);
+    expect(generateCode(d, {})).not.toContain("setcpm");
+  });
+});

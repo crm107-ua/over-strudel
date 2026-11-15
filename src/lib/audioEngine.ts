@@ -11,7 +11,17 @@ let replSync: Repl | null = null;
 async function getRepl(): Promise<Repl> {
   repl ??= (async () => {
     const { initStrudel } = await import("@strudel/web");
-    const r = (await initStrudel()) as Repl;
+    const { installExtras } = await import("./strudelExtras");
+    const { SAMPLE_MAPS } = await import("./sounds");
+    const r = (await initStrudel({
+      prebake: async () => {
+        await installExtras(); // functions the published packages lack (+ stubs for device/visual-only ones)
+        const g = globalThis as unknown as { samples?: (src: string) => Promise<unknown> };
+        // sample banks: a bank that fails to load must never block playback
+        const load = Promise.allSettled(SAMPLE_MAPS.map((m) => g.samples?.(m)));
+        await Promise.race([load, new Promise((res) => setTimeout(res, 10000))]);
+      },
+    })) as Repl;
     replSync = r;
     return r;
   })();

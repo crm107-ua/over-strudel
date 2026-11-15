@@ -47,6 +47,8 @@ flowchart TB
 | `src/lib/edit/codegen.ts` | `Doc` → canonical Strudel code. |
 | `src/lib/edit/hit.ts` | Pixel ↔ measure / sixteenth / pitch geometry for pointer editing. |
 | `src/lib/edit/shortcuts.ts`, `noteInfo.ts` | Keyboard map (also rendered in the guide); note names and durations. |
+| `src/lib/strudelExtras.ts` | Compatibility layer: the REPL semantics the plain evaluator lacks (`$:`, `all`, `each`, `hush`, `setcpm`, `cpm`), functions missing from the published packages (`stackCenter`, `stackRepeat`, `juxFlip`, `isquare`, `isobite`, `setDefaultJoin`…), aliases and pass-through stubs for audio/visual/device-only functions. Used by the Worker and by the audio engine. |
+| `src/lib/strudelApi.ts`, `sounds.ts` | The API name list the app guarantees (tested) and the sample banks loaded on first play. |
 | `src/lib/keys.ts`, `directives.ts` | Key signatures; `// @…` directives. |
 | `src/store/useScore.ts` | Zustand store: document, selection, history, entry state, verification loop. |
 | `src/components/` | `ScoreView` (engraving, sheets, pointer interaction), `NotePopover`, `EditToolbar`, `Toolbar`, `Editor`, `ScorePager`, `GuideModal`, … and `ui/` (shadcn/ui). |
@@ -158,7 +160,7 @@ document; a mismatch adopts the evaluation and shows a warning. Mouse-wheel turn
 | Pure operations, geometry, keys, figures | Vitest | Rules and invariants (measures always complete, rests as subdivisions, entry contract). |
 | Codegen | Vitest + **real Strudel** | Document → code → engine → document is the identity, for random documents in several keys; code is a fixed point. |
 | Store | Vitest + real Strudel + fuzz | After any random action sequence the code on screen reproduces the score. |
-| UI | Playwright (`playwright-core`) driving real Chrome | Pointer, keyboard, drag, wheel, undo, pagination, playback, themes — 101 checks. |
+| UI | Playwright (`playwright-core`) driving real Chrome | Pointer, keyboard, drag, wheel, undo, pagination, playback, themes, API coverage — 105 checks. |
 
 Vitest needs the ESM build of `@kabelsalat/web` (Node would pick its IIFE build): see the alias in `vitest.config.mts`.
 

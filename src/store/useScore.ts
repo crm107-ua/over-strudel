@@ -66,6 +66,8 @@ interface ScoreState {
   /** raw events + the exact code they were computed from (used to highlight code while playing) */
   events: RawEvent[];
   evaluatedCode: string;
+  /** tempo set in the code with setcpm/setcps (cycles per minute), null = default */
+  cpm: number | null;
   error: string | null;
   isPlaying: boolean;
 
@@ -131,7 +133,7 @@ export const useScore = create<ScoreState>((set, get) => {
     const st = get();
     const next = normalize(doc);
     const key = keyId ?? st.keyId;
-    const code = generateCode(next, { staff: st.staffMode, key });
+    const code = generateCode(next, { staff: st.staffMode, key, cpm: st.cpm });
     const now = Date.now();
     const merge = !!coalesce && lastCoalesce.key === coalesce && now - lastCoalesce.at < 600 && st.past.length > 0;
     lastCoalesce = coalesce ? { key: coalesce, at: now } : { key: "", at: 0 };
@@ -193,6 +195,7 @@ export const useScore = create<ScoreState>((set, get) => {
     score: scoreOf({ measures: FIRST_DIR.measures ?? FIRST.measures, events: [] }, FIRST_DIR.staff, FIRST_DIR.key),
     events: [],
     evaluatedCode: "",
+    cpm: null,
     error: null,
     isPlaying: false,
 
@@ -258,15 +261,15 @@ export const useScore = create<ScoreState>((set, get) => {
       const measures = dir.measures ?? get().measuresSetting;
       set({ status: "busy", measures, measuresFromCode: dir.measures !== null, staffMode: dir.staff, keyId: dir.key });
       try {
-        const events = await queryPattern(code, measures);
+        const { events, cpm } = await queryPattern(code, measures);
         const fromCode = docFromQ(quantize(events, measures), measures);
         const docEnd = fromCode.events.reduce((m, e) => Math.max(m, e.start + e.dur), 0);
         const consistent = expect && JSON.stringify(canonical(fromCode)) === JSON.stringify(canonical(expect));
         if (expect && consistent) {
-          set({ events, evaluatedCode: code, error: null, status: "ok", cursor: Math.min(get().cursor, measures * 16) }); // keep ids + selection
+          set({ cpm, events, evaluatedCode: code, error: null, status: "ok", cursor: Math.min(get().cursor, measures * 16) }); // keep ids + selection
         } else {
           set({
-            doc: fromCode, score: scoreOf(fromCode, dir.staff, dir.key), events, evaluatedCode: code, status: "ok",
+            cpm, doc: fromCode, score: scoreOf(fromCode, dir.staff, dir.key), events, evaluatedCode: code, status: "ok",
             error: expect ? "La partitura editada no coincide con lo que evalúa Strudel (se ha adoptado la evaluación)." : null,
             cursor: expect ? Math.min(get().cursor, measures * 16) : docEnd >= measures * 16 ? measures * 16 : docEnd,
             ...(expect ? {} : { reach: {}, cursorPinned: false }),

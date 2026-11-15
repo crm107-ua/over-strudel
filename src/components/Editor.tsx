@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import MonacoEditor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
 import { subscribePlayhead } from "@/lib/playhead";
 import { useScore } from "@/store/useScore";
+import { STRUDEL_NAMES } from "@/lib/strudelApi";
+import { VCSL_SOUNDS } from "@/lib/sounds";
 
 const DEBOUNCE_MS = 300;
 
@@ -28,6 +30,12 @@ const FUNCS: [string, string][] = [
   ["chord", 'chord("<C Am F G>")'],
   ["legato", "legato(1)"],
   ["euclid", "euclid(3, 8)"],
+];
+
+
+const SOUND_NAMES = [
+  ...VCSL_SOUNDS.map(([n]) => n),
+  ...["sine", "sawtooth", "square", "triangle", "supersaw", "pulse", "white", "pink", "brown", "crackle", "bd", "sd", "hh", "oh", "cp", "rim", "lt", "mt", "ht", "cr", "rd", "sax", "piano"],
 ];
 
 type Monaco = Parameters<BeforeMount>[0];
@@ -65,8 +73,31 @@ const beforeMount: BeforeMount = (monaco) => {
         startColumn: w.startColumn,
         endColumn: w.endColumn,
       };
+      // inside a string: sound names; elsewhere: functions
+      const before = model.getValueInRange({ startLineNumber: pos.lineNumber, startColumn: 1, endLineNumber: pos.lineNumber, endColumn: pos.column });
+      const inString = ((before.match(/["'`]/g) ?? []).length % 2) === 1;
+      if (inString) {
+        return {
+          suggestions: SOUND_NAMES.map((name) => ({
+            label: name,
+            kind: monaco.languages.CompletionItemKind.Value,
+            insertText: name,
+            detail: "sonido",
+            range,
+          })),
+        };
+      }
+      const known = new Set(FUNCS.map(([l]) => l));
       return {
-        suggestions: FUNCS.map(([label, insertText]) => ({
+        suggestions: [
+          ...STRUDEL_NAMES.filter((n) => !known.has(n)).map((n) => ({
+            label: n,
+            kind: monaco.languages.CompletionItemKind.Function,
+            insertText: n,
+            detail: "Strudel",
+            range,
+          })),
+          ...FUNCS.map(([label, insertText]) => ({
           label,
           kind: monaco.languages.CompletionItemKind.Function,
           insertText,
@@ -74,6 +105,7 @@ const beforeMount: BeforeMount = (monaco) => {
           detail: "Strudel",
           range,
         })),
+        ],
       };
     },
   });

@@ -3,8 +3,8 @@ import { evaluateToEvents } from "@/lib/strudelRuntime";
 
 // The Worker/audio are browser-only: evaluate with the REAL Strudel in-process instead.
 vi.mock("@/lib/strudelClient", async () => {
-  const { evaluateToEvents } = await import("@/lib/strudelRuntime");
-  return { queryPattern: (code: string, cycles: number) => evaluateToEvents(code, cycles) };
+  const { evaluateFull } = await import("@/lib/strudelRuntime");
+  return { queryPattern: (code: string, cycles: number) => evaluateFull(code, cycles) };
 });
 vi.mock("@/lib/audioEngine", () => ({ playCode: vi.fn(), stopAudio: vi.fn(), getCycle: () => null }));
 
