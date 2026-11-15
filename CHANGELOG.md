@@ -24,7 +24,7 @@ First public release.
 - Light and dark score; shadcn/ui (Base UI) component set.
 - Docker Compose + Nginx, PM2 configuration (`ecosystem.config.cjs`), standalone Next.js build.
 - Test suite: 119 unit/integration tests with the real Strudel engine (round-trip property tests, store fuzzing) and
-  92 end-to-end browser checks.
+  93 end-to-end browser checks.
 
 ### Licensing
 - Released under AGPL-3.0-or-later, as required by the bundled Strudel packages; the app footer links to the source.

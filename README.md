@@ -10,7 +10,7 @@ Edit the score and the code rewrites itself.
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/tests-119%20unit%20%2B%2092%20e2e-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-119%20unit%20%2B%2093%20e2e-brightgreen)](#testing)
 
 </div>
 
@@ -170,7 +170,7 @@ The document model, the canonical code format and the design decisions are descr
   after every step, the code on screen evaluated by Strudel must reproduce the score exactly.
   `FUZZ_SESSIONS=60 npx vitest run src/store` for a heavier run.
 - **End-to-end** (`e2e/editor.mjs`, Playwright driving a real Chrome): clicks, keyboard, drag, undo, sequential entry,
-  pagination, key changes, playback and themes — 92 checks.
+  pagination, key changes, playback and themes — 93 checks.
 
 ```bash
 npm run dev &                                   # or docker compose up -d --build

@@ -148,7 +148,7 @@ document; a mismatch adopts the evaluation and shows a warning. Mouse-wheel turn
 | Pure operations, geometry, keys, figures | Vitest | Rules and invariants (measures always complete, rests as subdivisions, entry contract). |
 | Codegen | Vitest + **real Strudel** | Document → code → engine → document is the identity, for random documents in several keys; code is a fixed point. |
 | Store | Vitest + real Strudel + fuzz | After any random action sequence the code on screen reproduces the score. |
-| UI | Playwright (`playwright-core`) driving real Chrome | Pointer, keyboard, drag, wheel, undo, pagination, playback, themes — 92 checks. |
+| UI | Playwright (`playwright-core`) driving real Chrome | Pointer, keyboard, drag, wheel, undo, pagination, playback, themes — 93 checks. |
 
 Vitest needs the ESM build of `@kabelsalat/web` (Node would pick its IIFE build): see the alias in `vitest.config.mts`.
 
