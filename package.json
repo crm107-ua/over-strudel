@@ -1,6 +1,6 @@
 {
   "name": "over-strudel",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Live-code music with Strudel and watch it become sheet music in real time. Edit the score and the code rewrites itself.",
   "license": "AGPL-3.0-or-later",
   "homepage": "https://github.com/crm107-ua/over-strudel#readme",
@@ -45,6 +45,7 @@
     "@strudel/web": "^1.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fflate": "^0.8.3",
     "fontkit": "^3.0.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.73.0",
@@ -64,6 +65,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@xmldom/xmldom": "^0.9.12",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "playwright-core": "^1.65.1",

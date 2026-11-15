@@ -145,6 +145,23 @@ docker compose -f docker-compose.prod.yml up -d --build
 Back up `~/.pm2/dump.pm2` before `pm2 save`. The old `node_modules/` and `.next/` directories in the application folder
 are no longer needed and can be removed.
 
+### 2.7 Score import from PDF (OMR service)
+
+`docker-compose.prod.yml` also builds and runs `omr`: Audiveris 5.11 (AGPL-3.0) behind a small HTTP server (`omr/`). The app
+talks to it through `OMR_URL=http://omr:8080` and exposes it to the browser as asynchronous jobs (`/api/omr`), so Nginx's
+60 s read timeout is not an issue.
+
+| Setting | Effect |
+| --- | --- |
+| no `ports` | The service cannot be reached from the host or the network, only from the app. |
+| network `omr` with `internal: true` | No route to the internet from the container. |
+| `read_only`, tmpfs `/tmp` and `/home/omr` with `exec` | The JVM unpacks native libraries (JNA) into those. |
+| `cap_drop: ALL`, `no-new-privileges`, user 10001 | No privileges. |
+| `mem_limit: 3g`, `cpus: 2`, queue of 4, one job at a time, 280 s per job | A bad PDF cannot starve the host. |
+
+The image is about 560 MB and the first build downloads Audiveris from its GitHub release. Without `omr` (or without `OMR_URL`)
+the *Import* dialog still accepts MusicXML and MXL and says that PDF recognition is not available.
+
 ## 3. Environment
 
 The app needs no secrets. The runtime variables are `PORT`, `HOSTNAME` and `NODE_ENV=production` (set in the Dockerfile and
@@ -154,3 +171,5 @@ the compose files).
 
 Over Strudel is AGPL-3.0-or-later. If you modify it and run it as a public service, users must be able to obtain your
 modified source. The footer link points to this repository; change it to your fork if you deploy modifications.
+
+The optional `omr` service runs [Audiveris](https://github.com/Audiveris/audiveris), also AGPL-3.0, as a separate program.

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { BookOpen, FileDown, Library, Loader2, Settings } from "lucide-react";
+import { BookOpen, FileDown, FileUp, Library, Loader2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import PlayButton from "./PlayButton";
 
 const ITEMS = [{ value: "custom", label: "Personalizado" }, ...EXAMPLES.map((e) => ({ value: e.id, label: e.title }))];
 
-export default function Toolbar({ onOpenGuide, onOpenSettings }: { onOpenGuide: () => void; onOpenSettings: () => void }) {
+export default function Toolbar({ onOpenGuide, onOpenSettings, onOpenImport }: { onOpenGuide: () => void; onOpenSettings: () => void; onOpenImport: () => void }) {
   const exampleId = useScore((s) => s.exampleId);
   const measuresSetting = useScore((s) => s.measuresSetting);
   const measures = useScore((s) => s.measures);
@@ -94,6 +94,9 @@ export default function Toolbar({ onOpenGuide, onOpenSettings }: { onOpenGuide: 
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onOpenImport} data-testid="open-import" title="Importa un PDF (reconocimiento óptico), MusicXML o MXL">
+            <FileUp /> Importar
+          </Button>
           <Button variant="outline" size="sm" onClick={exportPdf} disabled={exporting} data-testid="export-pdf" title="Descarga toda la partitura en hojas A4 (PDF vectorial)">
             {exporting ? <Loader2 className="animate-spin" /> : <FileDown />} Exportar PDF
           </Button>

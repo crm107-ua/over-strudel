@@ -4,3 +4,5 @@ node_modules
 *.md
 Dockerfile
 docker-compose.yml
+omr
+e2e

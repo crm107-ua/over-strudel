@@ -10,7 +10,7 @@ Edit the score and the code rewrites itself.
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/tests-235%20unit%20%2B%20browser%20e2e-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-268%20unit%20%2B%20browser%20e2e-brightgreen)](#testing)
 
 </div>
 
@@ -51,6 +51,8 @@ rewritten, with every measure still adding up exactly.
   `timpani2`…) load on first play, with autocompletion.
 - **PDF export and documentation** — the whole score on A4 sheets with justified measures (vector, fonts embedded as outlines);
   an in-app documentation (`/docs`) with a side panel, searchable function reference and sounds catalogue.
+- **Import a score** — MusicXML / MXL, or a **PDF** through optical music recognition (Audiveris): it becomes Strudel code, with a report of
+  what had to be approximated. Measured 96–100% exact notes on clean engraved PDFs; always review a recognised scan.
 - **Your code stays yours** — with *Conserve my code* (Settings, stored in `localStorage`), changing the key or the number of measures
   only touches the directives; your pattern is not rewritten.
 - **Dynamics and articulations** — `gain` becomes *p / mf / f*, `clip` becomes staccato / tenuto, both editable on the staff.

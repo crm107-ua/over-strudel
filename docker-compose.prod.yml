@@ -1,9 +1,12 @@
-# Production service for a VPS that already runs a reverse proxy (e.g. Nginx) on the host.
+# Production services for a VPS that already runs a reverse proxy (e.g. Nginx) on the host.
 #
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
 # The app is published ONLY on the loopback interface (http://127.0.0.1:4244): the host's Nginx terminates TLS and
 # proxies to it. Nothing else on the machine, and nothing outside it, can reach the container directly.
+#
+# The `omr` service (Audiveris, optical music recognition for PDF scores) is NOT published at all: it lives on an
+# internal network that only the app joins, and that network has no route to the internet.
 #
 # Variables (all optional):
 #   APP_PORT  host loopback port            (default 4244)
@@ -25,6 +28,13 @@ services:
       PORT: "3000"
       HOSTNAME: 0.0.0.0
       NEXT_TELEMETRY_DISABLED: "1"
+      OMR_URL: http://omr:8080
+    networks:
+      - default
+      - omr
+    depends_on:
+      omr:
+        condition: service_started
 
     # --- hardening ---
     read_only: true            # the app never writes to its filesystem
@@ -49,3 +59,34 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  omr:
+    build: ./omr
+    image: over-strudel-omr:latest
+    container_name: over-strudel-omr
+    restart: unless-stopped
+    networks:
+      - omr                    # internal only: no published port, no internet
+
+    # --- hardening ---
+    read_only: true
+    tmpfs:
+      - /tmp:rw,exec,size=768m                 # exec: the JVM unpacks native libraries (JNA) here
+      - /home/omr:rw,exec,size=256m,uid=10001
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 3g
+    cpus: 2
+    pids_limit: 400
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  omr:
+    internal: true             # no route out of this network

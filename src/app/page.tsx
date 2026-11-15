@@ -4,6 +4,7 @@ import Editor from "@/components/Editor";
 import EditToolbar from "@/components/EditToolbar";
 import ErrorBanner from "@/components/ErrorBanner";
 import GuideModal from "@/components/GuideModal";
+import ImportDialog from "@/components/ImportDialog";
 import SettingsDialog from "@/components/SettingsDialog";
 import ScoreInfo from "@/components/ScoreInfo";
 import ScoreView from "@/components/ScoreView";
@@ -17,6 +18,7 @@ export default function Home() {
   const wrap = useRef<HTMLDivElement>(null);
   const [guide, setGuide] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const theme = useScore((s) => s.scoreTheme);
 
   // restore the saved score theme after mount (avoids a hydration mismatch)
@@ -61,7 +63,8 @@ export default function Home() {
 
   return (
     <main className="flex h-screen flex-col bg-[#0b0d12] text-foreground">
-      <Toolbar onOpenGuide={() => setGuide(true)} onOpenSettings={() => setSettingsOpen(true)} />
+      <Toolbar onOpenGuide={() => setGuide(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenImport={() => setImportOpen(true)} />
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <GuideModal open={guide} onOpenChange={setGuide} />
       <div ref={wrap} className="flex min-h-0 flex-1">

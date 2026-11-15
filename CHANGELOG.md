@@ -3,6 +3,17 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org).
 
+## [0.4.0] - 2026-11-15
+
+### Added
+- **Score import.** The *Import* button turns MusicXML / MXL (read in the browser, exact) or a **PDF** (optical music
+  recognition with Audiveris, in a separate container) into Strudel code: notes, chords, voices, parts, ties, key, tempo,
+  title, dynamics, staccato/tenuto, pick-up measures, repeats and 1st/2nd endings, with a report of everything that was
+  approximated (other meters, tuplets, grace notes...). One undo step restores the previous code.
+- `/api/omr` (asynchronous jobs, so it works behind a reverse proxy) and the `omr` service in `docker-compose.prod.yml`:
+  no published port, internal network without internet, read-only, no capabilities, memory/CPU limits.
+- Measured on PDFs exported by the app: 58/58 and 63/65 notes recognised exactly (start, length, pitch), 100% of pitches per beat.
+
 ## [0.3.0] - 2026-11-15
 
 ### Added
