@@ -51,8 +51,8 @@ rewritten, with every measure still adding up exactly.
   `timpani2`…) load on first play, with autocompletion.
 - **PDF export and documentation** — the whole score on A4 sheets with justified measures (vector, fonts embedded as outlines);
   an in-app documentation (`/docs`) with a side panel, searchable function reference and sounds catalogue.
-- **Import a score** — MusicXML / MXL, or a **PDF** through optical music recognition (Audiveris): it becomes Strudel code, with a report of
-  what had to be approximated. Measured 96–100% exact notes on clean engraved PDFs; always review a recognised scan.
+- **Create with AI** — type a classical piece, Gemini transcribes it to Strudel code in the editor's exact format; every measure is
+  machine-checked and the model repairs its own mistakes before anything is loaded. Needs a server-side API key.
 - **Your code stays yours** — with *Conserve my code* (Settings, stored in `localStorage`), changing the key or the number of measures
   only touches the directives; your pattern is not rewritten.
 - **Dynamics and articulations** — `gain` becomes *p / mf / f*, `clip` becomes staccato / tenuto, both editable on the staff.

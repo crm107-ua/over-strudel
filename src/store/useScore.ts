@@ -118,8 +118,8 @@ interface ScoreState {
   setKey: (id: string) => void;
   setTransposeOnKeyChange: (on: boolean) => void;
   setCode: (code: string) => void;
-  /** load code produced by an import: one undo step brings the previous code back */
-  importCode: (code: string) => void;
+  /** load generated code into the editor; one undo step brings the previous code back */
+  loadCode: (code: string) => void;
   setMeasures: (n: number) => void;
   loadExample: (id: string) => void;
   evaluate: (code?: string, expect?: Doc) => Promise<void>;
@@ -296,7 +296,7 @@ export const useScore = create<ScoreState>((set, get) => {
         true,
       );
     },
-    importCode: (code) => {
+    loadCode: (code) => {
       const st = get();
       set({
         past: [...st.past, { code: st.code, doc: st.doc, selection: st.selection }].slice(-HISTORY_LIMIT),

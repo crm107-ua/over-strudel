@@ -4,9 +4,8 @@ import Editor from "@/components/Editor";
 import EditToolbar from "@/components/EditToolbar";
 import ErrorBanner from "@/components/ErrorBanner";
 import GuideModal from "@/components/GuideModal";
-import ImportDialog from "@/components/ImportDialog";
+import GenerateDialog from "@/components/GenerateDialog";
 import SettingsDialog from "@/components/SettingsDialog";
-import ScoreInfo from "@/components/ScoreInfo";
 import ScoreView from "@/components/ScoreView";
 import StatusBar from "@/components/StatusBar";
 import Toolbar from "@/components/Toolbar";
@@ -18,7 +17,7 @@ export default function Home() {
   const wrap = useRef<HTMLDivElement>(null);
   const [guide, setGuide] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const theme = useScore((s) => s.scoreTheme);
 
   // restore the saved score theme after mount (avoids a hydration mismatch)
@@ -63,8 +62,8 @@ export default function Home() {
 
   return (
     <main className="flex h-screen flex-col bg-[#0b0d12] text-foreground">
-      <Toolbar onOpenGuide={() => setGuide(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenImport={() => setImportOpen(true)} />
-      <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
+      <Toolbar onOpenGuide={() => setGuide(true)} onOpenSettings={() => setSettingsOpen(true)} onOpenGenerate={() => setGenerateOpen(true)} />
+      <GenerateDialog open={generateOpen} onOpenChange={setGenerateOpen} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <GuideModal open={guide} onOpenChange={setGuide} />
       <div ref={wrap} className="flex min-h-0 flex-1">
@@ -84,10 +83,6 @@ export default function Home() {
           aria-orientation="vertical"
         />
         <section className={`score-${theme} ${theme === "dark" ? "dark" : ""} flex min-w-0 flex-1 flex-col bg-[color:var(--sc-bg)] text-[color:var(--sc-text)]`}>
-          <div className="flex min-h-9 shrink-0 items-center gap-3 border-b border-[color:var(--sc-line)] bg-[color:var(--sc-bar)] px-4 py-1.5 text-[11px] uppercase tracking-wider">
-            <span>Partitura</span>
-            <ScoreInfo />
-          </div>
           <EditToolbar onHelp={() => setGuide(true)} />
           <div className="min-h-0 flex-1">
             <ScoreView />
